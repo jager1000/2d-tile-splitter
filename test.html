@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Map Generator Test</title>
+</head>
+<body>
+    <h1>Map Generator Test</h1>
+    <p>Testing the map generator application...</p>
+    
+    <script>
+        // Simple test to verify the main page loads
+        console.log('Test page loaded');
+        
+        // Try to load the main application in an iframe for testing
+        const iframe = document.createElement('iframe');
+        iframe.src = 'index.html';
+        iframe.style.width = '100%';
+        iframe.style.height = '800px';
+        iframe.style.border = '1px solid #ccc';
+        
+        iframe.onload = () => {
+            console.log('Main application loaded successfully');
+        };
+        
+        iframe.onerror = (error) => {
+            console.error('Error loading main application:', error);
+        };
+        
+        document.body.appendChild(iframe);
+    </script>
+</body>
+</html>
