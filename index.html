@@ -4,7 +4,364 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart 2D Map Generator</title>
-    <link rel="stylesheet" href="styles.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            padding: 20px;
+            border-bottom: 2px solid #333;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            background: linear-gradient(135deg, #00ff88 0%, #00aaff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .sidebar {
+            width: 350px;
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            overflow-y: auto;
+            max-height: calc(100vh - 120px);
+        }
+
+        .main-area {
+            flex: 1;
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section h3 {
+            color: #00ff88;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .upload-area {
+            border: 3px dashed #333;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #0a0a0a;
+        }
+
+        .upload-area:hover {
+            border-color: #00ff88;
+            background: #111;
+        }
+
+        .upload-area.dragover {
+            border-color: #00aaff;
+            background: #1a1a2e;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .tiles-preview {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 10px;
+            background: #0a0a0a;
+            border-radius: 8px;
+        }
+
+        .tile-item {
+            position: relative;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            overflow: hidden;
+        }
+
+        .tile-item:hover {
+            transform: scale(1.1);
+            border-color: #00ff88;
+        }
+
+        .tile-item.selected {
+            border-color: #00aaff;
+            box-shadow: 0 0 20px rgba(0, 170, 255, 0.5);
+        }
+
+        .tile-item.multi-selected {
+            border-color: #00ff88;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+        }
+
+        .tile-selector-item {
+            position: relative;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            overflow: hidden;
+        }
+
+        .tile-selector-item:hover {
+            transform: scale(1.05);
+            border-color: #00ff88;
+        }
+
+        .tile-selector-item.active {
+            border-color: #00aaff;
+            box-shadow: 0 0 15px rgba(0, 170, 255, 0.5);
+        }
+
+        .tile-selector-item img {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        .tile-item img {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        .tile-type {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            font-size: 9px;
+            padding: 2px;
+            text-align: center;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .control-group label {
+            flex: 1;
+            color: #aaa;
+        }
+
+        select, input[type="number"] {
+            background: #0a0a0a;
+            border: 2px solid #333;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            min-width: 100px;
+            transition: all 0.2s ease;
+        }
+
+        select:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: #00ff88;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #0a0a0a;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .checkbox-item:hover {
+            background: #1a1a1a;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            cursor: pointer;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #00ff88 0%, #00aaff 100%);
+            border: none;
+            color: #000;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.9rem;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 255, 136, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: #333;
+            color: #fff;
+        }
+
+        .btn-secondary:hover {
+            background: #444;
+            box-shadow: 0 8px 24px rgba(255, 255, 255, 0.1);
+        }
+
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0a0a0a;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #mapCanvas {
+            border: 2px solid #333;
+            image-rendering: pixelated;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1a1a1a;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        .status.success {
+            border-left: 4px solid #00ff88;
+        }
+
+        .status.error {
+            border-left: 4px solid #ff4444;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .tile-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+            padding: 10px;
+            background: #0a0a0a;
+            border-radius: 6px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        .stat-value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0a0a0a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+    </style>
 </head>
 <body>
     <div class="header">
@@ -93,11 +450,6 @@
                         <label>Tile Size:</label>
                         <input type="number" id="tileSize" value="32" min="8" max="128">
                     </div>
-                    <div class="control-group">
-                        <label>Grid Opacity:</label>
-                        <input type="range" id="gridOpacity" min="0" max="100" value="0" style="flex: 1; margin-left: 10px;" oninput="updateGridOpacity()">
-                        <span id="gridOpacityValue" style="color: #00ff88; font-size: 0.8rem; min-width: 30px; text-align: right;">0%</span>
-                    </div>
                 </div>
             </div>
 
@@ -121,96 +473,10 @@
                 <div class="control-group" style="margin-top: 15px;">
                     <label>Environment Type:</label>
                     <select id="environmentType">
-                        <option value="auto">Auto-detect from tiles</option>
-                        <option value="dungeon">Dungeon (rooms & corridors)</option>
-                        <option value="tavern">Tavern/Inn (tables, bar, furniture)</option>
-                        <option value="castle">Castle (throne room, chambers)</option>
-                        <option value="nature">Nature (wilderness, paths)</option>
-                        <option value="city">City (streets, buildings)</option>
-                        <option value="abstract">Abstract/Mixed</option>
-                    </select>
-                </div>
-            </div>
-
-            <button class="btn" onclick="generateMap()">Generate Map</button>
-            <button class="btn btn-secondary" onclick="exportMap()" style="margin-top: 10px;">Export as PNG</button>
-            
-            <div class="section" id="paintSection" style="display: none; margin-top: 20px;">
-                <h3>5. Paint Mode</h3>
-                <p style="color: #aaa; font-size: 0.9rem; margin-bottom: 10px;">Click tile preview to select paint tile, then drag on map to paint.</p>
-                <div id="paintTilePreview" style="width: 48px; height: 48px; border: 2px solid #333; border-radius: 4px; background: #0a0a0a; margin-bottom: 10px; cursor: pointer;" onclick="showTileSelector()"></div>
-                <button class="btn btn-secondary" onclick="togglePaintMode()" id="paintModeBtn">Enable Paint Mode</button>
-                
-                <!-- Tile Selector Popup -->
-                <div id="tileSelectorPopup" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1a1a1a; border: 2px solid #333; border-radius: 8px; padding: 20px; z-index: 1000; max-width: 500px; max-height: 400px; overflow-y: auto;">
-                    <h4 style="color: #00ff88; margin-bottom: 15px;">Select Paint Tile</h4>
-                    <div id="tileSelectorGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 8px; margin-bottom: 15px;"></div>
-                    <button class="btn btn-secondary" onclick="closeTileSelector()" style="width: 100%;">Close</button>
-                </div>
-                <div id="tileSelectorOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999;" onclick="closeTileSelector()"></div>
-            </div>
-        </div>
-
-        <div class="main-area">
-            <div class="canvas-container">
-                <canvas id="outputCanvas"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <div class="status" id="status"></div>
-
-    <script src="script.js"></script>
-</body>
-</html>
-                <div class="controls">
-                    <div class="control-group">
-                        <label>Map Size:</label>
-                        <select id="mapSize">
-                            <option value="16">16x16</option>
-                            <option value="32" selected>32x32</option>
-                            <option value="64">64x64</option>
-                            <option value="128">128x128</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <label>Tile Size:</label>
-                        <input type="number" id="tileSize" value="32" min="8" max="128">
-                    </div>
-                    <div class="control-group">
-                        <label>Grid Opacity:</label>
-                        <input type="range" id="gridOpacity" min="0" max="100" value="0" style="flex: 1; margin-left: 10px;" oninput="updateGridOpacity()">
-                        <span id="gridOpacityValue" style="color: #00ff88; font-size: 0.8rem; min-width: 30px; text-align: right;">0%</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="section">
-                <h3>4. Generation Options</h3>
-                <div class="checkbox-group" id="assetTypes">
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="useFloors" checked>
-                        <label for="useFloors">Floors</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="useWalls" checked>
-                        <label for="useWalls">Walls</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="useDecorations" checked>
-                        <label for="useDecorations">Decorations</label>
-                    </div>
-                </div>
-                
-                <div class="control-group" style="margin-top: 15px;">
-                    <label>Environment Type:</label>
-                    <select id="environmentType">
-                        <option value="auto">Auto-detect from tiles</option>
-                        <option value="dungeon">Dungeon (rooms & corridors)</option>
-                        <option value="tavern">Tavern/Inn (tables, bar, furniture)</option>
-                        <option value="castle">Castle (throne room, chambers)</option>
-                        <option value="nature">Nature (wilderness, paths)</option>
-                        <option value="city">City (streets, buildings)</option>
+                        <option value="auto">Auto-detect</option>
+                        <option value="nature">Nature (grass, water, trees)</option>
+                        <option value="dungeon">Dungeon (stone, corridors)</option>
+                        <option value="city">City (roads, buildings)</option>
                         <option value="abstract">Abstract/Mixed</option>
                     </select>
                 </div>
@@ -254,13 +520,6 @@
         let paintTileIndex = null;
         let tileStates = {}; // Track tile selection states
         let manualClassification = { floor: [], wall: [], decoration: [] }; // Manual tile assignments
-        let gridOpacity = 0; // Grid opacity from 0 to 1
-        let isMapGenerated = false;
-        let tileSize = 32;
-        
-        // Canvas elements
-        const mapCanvas = document.getElementById('outputCanvas');
-        const mapCtx = mapCanvas.getContext('2d');
 
         // Smart tile analysis using visual features
         class TileAnalyzer {
@@ -727,8 +986,6 @@
             }
         });
 
-        document.getElementById('gridOpacity').addEventListener('input', updateGridOpacity);
-
         function extractTiles() {
             const tileSize = parseInt(document.getElementById('tileSize').value);
             const canvas = document.createElement('canvas');
@@ -1089,633 +1346,273 @@
             const assignType = document.getElementById('tileAssignType').value;
             if (!assignType) return;
             
-            // Initialize classification array if it doesn't exist
-            if (!manualClassification[assignType]) {
-                manualClassification[assignType] = [];
+            if (selectedTiles.size === 0) {
+                alert('Please select at least one tile first (use Ctrl+Click for multiple selection)');
+                return;
             }
             
-            // Clear existing classification for these tiles
+            // Remove tiles from their current manual categories
             Object.keys(manualClassification).forEach(type => {
-                manualClassification[type] = manualClassification[type].filter(
-                    index => !selectedTiles.includes(index)
+                manualClassification[type] = manualClassification[type].filter(index => 
+                    !selectedTiles.has(index)
                 );
             });
             
-            // Add tiles to new classification
-            selectedTiles.forEach(tileIndex => {
-                if (!manualClassification[assignType].includes(tileIndex)) {
-                    manualClassification[assignType].push(tileIndex);
+            // Add selected tiles to new category
+            selectedTiles.forEach(index => {
+                manualClassification[assignType].push(index);
+                // Update the visual classification display
+                tileClassifications.set(index, assignType);
+            });
+            
+            // Update the tile display to show new classifications
+            displayTiles();
+            updateTileStats();
+            
+            console.log('Tiles assigned:', { type: assignType, count: selectedTiles.size });
+            console.log('Current manual classification:', manualClassification);
+            
+            // Clear selection after assignment
+            selectedTiles.clear();
+            displayTiles();
+        }
+
+        let paintTile = null;
+
+        function togglePaintMode() {
+            paintMode = !paintMode;
+            const button = document.getElementById('paintModeBtn');
+            
+            if (paintMode) {
+                // No longer require a tile to be selected - user can select from popup
+                button.textContent = 'Disable Paint Mode';
+                button.style.backgroundColor = '#e53e3e';
+                showPaintInstructions();
+            } else {
+                button.textContent = 'Enable Paint Mode';
+                button.style.backgroundColor = '#4a5568';
+                hidePaintInstructions();
+            }
+        }
+
+        function showPaintInstructions() {
+            const instructions = document.getElementById('paintInstructions');
+            if (!instructions) {
+                const div = document.createElement('div');
+                div.id = 'paintInstructions';
+                div.innerHTML = `
+                    <div style="background: rgba(66, 153, 225, 0.1); border: 1px solid #4299e1; padding: 10px; margin: 10px 0; border-radius: 4px;">
+                        <strong>Paint Mode Active:</strong> Click tile preview to select paint tile, then click and drag on the map to paint
+                    </div>
+                `;
+                document.getElementById('paintSection').appendChild(div);
+            }
+        }
+
+        function hidePaintInstructions() {
+            const instructions = document.getElementById('paintInstructions');
+            if (instructions) {
+                instructions.remove();
+            }
+        }
+
+        // Add click handler to output canvas for paint mode
+        function setupPaintMode() {
+            const outputCanvas = document.getElementById('outputCanvas');
+            if (!outputCanvas) return;
+            
+            let isPainting = false;
+            
+            function paintAtPosition(e) {
+                if (!paintMode || paintTileIndex === null || !currentMap) return;
+                
+                const rect = outputCanvas.getBoundingClientRect();
+                const tileSize = parseInt(document.getElementById('tileSize').value);
+                const x = Math.floor((e.clientX - rect.left) / tileSize);
+                const y = Math.floor((e.clientY - rect.top) / tileSize);
+                
+                if (x >= 0 && x < currentMap[0].length && y >= 0 && y < currentMap.length) {
+                    currentMap[y][x] = paintTileIndex;
+                    renderMap(currentMap);
+                }
+            }
+            
+            outputCanvas.addEventListener('mousedown', function(e) {
+                if (!paintMode || paintTileIndex === null) {
+                    if (paintMode && paintTileIndex === null) {
+                        showTileSelector();
+                    }
+                    return;
+                }
+                isPainting = true;
+                paintAtPosition(e);
+                e.preventDefault();
+            });
+            
+            outputCanvas.addEventListener('mousemove', function(e) {
+                if (isPainting) {
+                    paintAtPosition(e);
+                }
+                
+                // Change cursor when in paint mode
+                if (paintMode && paintTileIndex !== null) {
+                    this.style.cursor = 'crosshair';
+                } else if (paintMode) {
+                    this.style.cursor = 'pointer';
+                } else {
+                    this.style.cursor = 'default';
                 }
             });
             
-            // Clear selection and close overlay
-            selectedTiles.clear();
-            displayTiles();
-            closeTileSelector();
+            outputCanvas.addEventListener('mouseup', function() {
+                isPainting = false;
+            });
             
-            showStatus(`Assigned ${selectedTiles.size} tiles as ${assignType}`, 'success');
+            outputCanvas.addEventListener('mouseleave', function() {
+                isPainting = false;
+            });
+            
+            // Handle click (for single clicks)
+            outputCanvas.addEventListener('click', function(e) {
+                if (!isPainting) {
+                    paintAtPosition(e);
+                }
+            });
         }
 
         function generateMap() {
-            console.log('generateMap called');
-            
             if (!tilesetImage || tiles.length === 0) {
-                console.log('No tileset or tiles available');
                 showStatus('Please upload a tileset and extract tiles first', 'error');
                 return;
             }
 
-            if (selectedTiles.size === 0) {
-                console.log('No tiles selected');
-                showStatus('Please select some tiles to use for generation', 'error');
-                return;
-            }
-
-            console.log('Selected tiles:', selectedTiles.size);
-            console.log('Available tiles:', tiles.length);
-
             const mapSize = parseInt(document.getElementById('mapSize').value);
             const environmentType = document.getElementById('environmentType').value;
             
-            console.log('Map size:', mapSize, 'Environment:', environmentType);
-            
-            // Group selected tiles by type
+            // Group tiles by type - prioritize manual classification, fallback to auto-classification
             const tilesByType = { floor: [], wall: [], decoration: [] };
             
             // Check if we have manual classifications
             const hasManualClassifications = Object.values(manualClassification).some(arr => arr.length > 0);
             
             if (hasManualClassifications) {
-                console.log('Using manual classifications');
-                // Use manual classification but only for selected tiles
+                // Use manual classification
                 Object.keys(manualClassification).forEach(type => {
                     manualClassification[type].forEach(tileIndex => {
-                        if (selectedTiles.has(tileIndex)) {
-                            tilesByType[type].push(tileIndex);
-                        }
+                        tilesByType[type].push(tileIndex);
                     });
                 });
             } else {
-                console.log('Using auto-classifications');
-                // Use auto-classification from selected tiles only
+                // Use auto-classification from selected tiles
                 selectedTiles.forEach(index => {
                     const classification = tileClassifications.get(index) || 'floor';
                     tilesByType[classification].push(index);
                 });
             }
             
-            console.log('Tiles by type:', tilesByType);
-            
             // Ensure we have at least some tiles
             const totalTiles = Object.values(tilesByType).reduce((sum, arr) => sum + arr.length, 0);
             if (totalTiles === 0) {
-                console.log('No classified tiles available');
                 showStatus('Please select some tiles or assign tile classifications', 'error');
                 return;
             }
             
-            try {
-                // Generate intelligent map based on environment type
-                console.log('Generating map...');
-                const map = IntelligentMapGenerator.generate(mapSize, mapSize, tilesByType, environmentType);
-                currentMap = map;
-                
-                console.log('Map generated, rendering...');
-                renderMap();
-                isMapGenerated = true;
-                showStatus('Map generated successfully!', 'success');
-                
-                // Show paint section
-                document.getElementById('paintSection').style.display = 'block';
-                
-            } catch (error) {
-                console.error('Map generation error:', error);
-                showStatus('Map generation failed: ' + error.message, 'error');
-            }
+            // Generate map using the MapGenerator
+            const map = MapGenerator.generate(mapSize, mapSize, tilesByType, environmentType);
+            currentMap = map; // Store for paint mode
+            
+            // Render map
+            renderMap(map);
+            showStatus('Map generated successfully!', 'success');
         }
 
-        function renderMap() {
-            if (!currentMap || !tiles.length) return;
-            
-            mapCanvas.width = currentMap[0].length * tileSize;
-            mapCanvas.height = currentMap.length * tileSize;
-            
-            mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
-            
-            for (let y = 0; y < currentMap.length; y++) {
-                for (let x = 0; x < currentMap[y].length; x++) {
-                    const tileIndex = currentMap[y][x];
-                    if (tileIndex !== null && tiles[tileIndex]) {
-                        mapCtx.drawImage(
-                            tiles[tileIndex],
-                            x * tileSize,
-                            y * tileSize,
-                            tileSize,
-                            tileSize
-                        );
-                    }
-                }
+        function renderMap(map) {
+            const canvas = document.getElementById('outputCanvas');
+            if (!canvas) {
+                showStatus('Canvas not found', 'error');
+                return;
             }
             
-            // Draw grid if opacity > 0
-            if (gridOpacity > 0) {
-                drawGrid();
-            }
-        }
-
-        function updateGridOpacity() {
-            const slider = document.getElementById('gridOpacity');
-            const value = document.getElementById('gridOpacityValue');
-            gridOpacity = parseInt(slider.value) / 100;
-            value.textContent = slider.value + '%';
+            const ctx = canvas.getContext('2d');
+            const tileSize = parseInt(document.getElementById('tileSize').value);
             
-            // Redraw map if it exists
-            if (isMapGenerated && currentMap) {
-                renderMap();
-            }
-        }
-
-        function drawGrid() {
-            if (!mapCtx || !tileSize || !mapCanvas.width || !mapCanvas.height) return;
+            canvas.width = map[0].length * tileSize;
+            canvas.height = map.length * tileSize;
             
-            mapCtx.save();
-            mapCtx.globalAlpha = gridOpacity;
-            mapCtx.strokeStyle = '#ffffff';
-            mapCtx.lineWidth = 1;
+            // Clear canvas
+            ctx.fillStyle = '#222';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Draw vertical lines
-            for (let x = 0; x <= mapCanvas.width; x += tileSize) {
-                mapCtx.beginPath();
-                mapCtx.moveTo(x, 0);
-                mapCtx.lineTo(x, mapCanvas.height);
-                mapCtx.stroke();
-            }
+            // Draw tiles
+            let imagesLoaded = 0;
+            const totalImages = map.length * map[0].length;
             
-            // Draw horizontal lines
-            for (let y = 0; y <= mapCanvas.height; y += tileSize) {
-                mapCtx.beginPath();
-                mapCtx.moveTo(0, y);
-                mapCtx.lineTo(mapCanvas.width, y);
-                mapCtx.stroke();
-            }
-            
-            mapCtx.restore();
-        }
-
-        // Intelligent Map Generator with context-aware generation
-        class IntelligentMapGenerator {
-            static generate(width, height, tilesByType, environmentType) {
-                const generator = new this(width, height, tilesByType, environmentType);
-                return generator.generateMap();
-            }
-            
-            constructor(width, height, tilesByType, environmentType) {
-                this.width = width;
-                this.height = height;
-                this.tilesByType = tilesByType;
-                this.environmentType = environmentType;
-                this.map = Array(height).fill().map(() => Array(width).fill(null));
-            }
-            
-            generateMap() {
-                // Auto-detect environment if set to auto
-                if (this.environmentType === 'auto') {
-                    this.environmentType = this.detectEnvironment();
-                }
-                
-                switch (this.environmentType) {
-                    case 'dungeon':
-                        return this.generateDungeon();
-                    case 'tavern':
-                        return this.generateTavern();
-                    case 'castle':
-                        return this.generateCastle();
-                    case 'nature':
-                        return this.generateNature();
-                    case 'city':
-                        return this.generateCity();
-                    default:
-                        return this.generateAbstract();
-                }
-            }
-            
-            detectEnvironment() {
-                // Analyze tile colors and textures to detect environment type
-                const analysis = this.analyzeTileContent();
-                
-                if (analysis.hasStone && analysis.hasDarkTones) return 'dungeon';
-                if (analysis.hasWood && analysis.hasWarmTones) return 'tavern';
-                if (analysis.hasGrass && analysis.hasNaturalTones) return 'nature';
-                if (analysis.hasRoads && analysis.hasBuildings) return 'city';
-                
-                return 'abstract';
-            }
-            
-            analyzeTileContent() {
-                // This is a simplified analysis - in a real implementation,
-                // you'd analyze the actual pixel data of tiles
-                return {
-                    hasStone: this.tilesByType.wall.length > 0,
-                    hasDarkTones: true,
-                    hasWood: this.tilesByType.decoration.length > 0,
-                    hasWarmTones: true,
-                    hasGrass: this.tilesByType.floor.length > 0,
-                    hasNaturalTones: true,
-                    hasRoads: this.tilesByType.floor.length > 0,
-                    hasBuildings: this.tilesByType.wall.length > 0
-                };
-            }
-            
-            generateDungeon() {
-                // Generate logical dungeon layout with rooms and corridors
-                this.fillWithTile(this.getRandomTile('wall')); // Start with walls
-                
-                const rooms = this.generateRooms(3, 7); // 3-7 rooms
-                
-                // Create rooms
-                rooms.forEach(room => {
-                    this.carveRoom(room);
-                });
-                
-                // Connect rooms with corridors
-                this.connectRooms(rooms);
-                
-                // Add decorations to rooms
-                this.addDungeonDecorations(rooms);
-                
-                return this.map;
-            }
-            
-            generateTavern() {
-                // Generate tavern layout with bar, tables, and furniture
-                this.fillWithTile(this.getRandomTile('floor')); // Start with floor
-                
-                // Add walls around perimeter
-                this.addPerimeterWalls();
-                
-                // Add tavern features
-                this.addTavernBar();
-                this.addTavernTables();
-                this.addTavernDecorations();
-                
-                return this.map;
-            }
-            
-            generateCastle() {
-                // Generate castle with throne room, chambers, etc.
-                this.fillWithTile(this.getRandomTile('wall')); // Start with walls
-                
-                const mainHall = { x: Math.floor(this.width * 0.3), y: Math.floor(this.height * 0.3), 
-                                  width: Math.floor(this.width * 0.4), height: Math.floor(this.height * 0.4) };
-                
-                this.carveRoom(mainHall);
-                this.addCastleFeatures(mainHall);
-                
-                return this.map;
-            }
-            
-            generateNature() {
-                // Generate natural environment with paths and organic features
-                this.fillWithTile(this.getRandomTile('floor')); // Grass base
-                
-                this.addNaturalPaths();
-                this.addNaturalFeatures();
-                
-                return this.map;
-            }
-            
-            generateCity() {
-                // Generate city with streets and buildings
-                this.fillWithTile(this.getRandomTile('floor')); // Roads base
-                
-                this.addCityStreets();
-                this.addCityBuildings();
-                
-                return this.map;
-            }
-            
-            generateAbstract() {
-                // Simple random generation
-                for (let y = 0; y < this.height; y++) {
-                    for (let x = 0; x < this.width; x++) {
-                        const rand = Math.random();
-                        if (rand < 0.6) {
-                            this.map[y][x] = this.getRandomTile('floor');
-                        } else if (rand < 0.85) {
-                            this.map[y][x] = this.getRandomTile('wall');
-                        } else {
-                            this.map[y][x] = this.getRandomTile('decoration');
-                        }
-                    }
-                }
-                return this.map;
-            }
-            
-            // Helper methods
-            fillWithTile(tileIndex) {
-                for (let y = 0; y < this.height; y++) {
-                    for (let x = 0; x < this.width; x++) {
-                        this.map[y][x] = tileIndex;
-                    }
-                }
-            }
-            
-            getRandomTile(type) {
-                const tiles = this.tilesByType[type];
-                if (!tiles || tiles.length === 0) {
-                    // Fallback to any available tile
-                    const allTiles = [...this.tilesByType.floor, ...this.tilesByType.wall, ...this.tilesByType.decoration];
-                    return allTiles.length > 0 ? allTiles[Math.floor(Math.random() * allTiles.length)] : 0;
-                }
-                return tiles[Math.floor(Math.random() * tiles.length)];
-            }
-            
-            generateRooms(minRooms, maxRooms) {
-                const numRooms = Math.floor(Math.random() * (maxRooms - minRooms + 1)) + minRooms;
-                const rooms = [];
-                
-                for (let i = 0; i < numRooms; i++) {
-                    const room = this.generateRoom();
-                    if (room && !this.roomOverlaps(room, rooms)) {
-                        rooms.push(room);
-                    }
-                }
-                
-                return rooms;
-            }
-            
-            generateRoom() {
-                const minSize = 4;
-                const maxSize = Math.min(this.width, this.height) / 3;
-                
-                const width = Math.floor(Math.random() * (maxSize - minSize)) + minSize;
-                const height = Math.floor(Math.random() * (maxSize - minSize)) + minSize;
-                
-                const x = Math.floor(Math.random() * (this.width - width - 2)) + 1;
-                const y = Math.floor(Math.random() * (this.height - height - 2)) + 1;
-                
-                return { x, y, width, height };
-            }
-            
-            roomOverlaps(room, existingRooms) {
-                return existingRooms.some(existing => 
-                    room.x < existing.x + existing.width + 1 &&
-                    room.x + room.width + 1 > existing.x &&
-                    room.y < existing.y + existing.height + 1 &&
-                    room.y + room.height + 1 > existing.y
-                );
-            }
-            
-            carveRoom(room) {
-                for (let y = room.y; y < room.y + room.height; y++) {
-                    for (let x = room.x; x < room.x + room.width; x++) {
-                        if (this.isValidPosition(x, y)) {
-                            this.map[y][x] = this.getRandomTile('floor');
-                        }
-                    }
-                }
-            }
-            
-            connectRooms(rooms) {
-                for (let i = 0; i < rooms.length - 1; i++) {
-                    const roomA = rooms[i];
-                    const roomB = rooms[i + 1];
-                    this.createCorridor(roomA, roomB);
-                }
-            }
-            
-            createCorridor(roomA, roomB) {
-                const startX = Math.floor(roomA.x + roomA.width / 2);
-                const startY = Math.floor(roomA.y + roomA.height / 2);
-                const endX = Math.floor(roomB.x + roomB.width / 2);
-                const endY = Math.floor(roomB.y + roomB.height / 2);
-                
-                // Create L-shaped corridor
-                let currentX = startX;
-                let currentY = startY;
-                
-                // Horizontal first
-                while (currentX !== endX) {
-                    if (this.isValidPosition(currentX, currentY)) {
-                        this.map[currentY][currentX] = this.getRandomTile('floor');
-                    }
-                    currentX += currentX < endX ? 1 : -1;
-                }
-                
-                // Then vertical
-                while (currentY !== endY) {
-                    if (this.isValidPosition(currentX, currentY)) {
-                        this.map[currentY][currentX] = this.getRandomTile('floor');
-                    }
-                    currentY += currentY < endY ? 1 : -1;
-                }
-            }
-            
-            addDungeonDecorations(rooms) {
-                rooms.forEach(room => {
-                    // Add occasional decorative elements in corners or walls
-                    if (Math.random() < 0.3) {
-                        const x = room.x + Math.floor(Math.random() * room.width);
-                        const y = room.y + Math.floor(Math.random() * room.height);
-                        if (this.isValidPosition(x, y)) {
-                            this.map[y][x] = this.getRandomTile('decoration');
-                        }
+            map.forEach((row, y) => {
+                row.forEach((tileIndex, x) => {
+                    if (tileIndex !== null && tileIndex !== undefined && tiles[tileIndex]) {
+                        const img = new Image();
+                        img.onload = () => {
+                            ctx.drawImage(img, x * tileSize, y * tileSize, tileSize, tileSize);
+                            imagesLoaded++;
+                        };
+                        img.onerror = () => {
+                            imagesLoaded++;
+                        };
+                        img.src = tiles[tileIndex];
+                    } else {
+                        imagesLoaded++;
                     }
                 });
+            });
+        }
+
+        function exportMap() {
+            const canvas = document.getElementById('outputCanvas');
+            if (!canvas || !currentMap) {
+                showStatus('No map to export', 'error');
+                return;
             }
             
-            addPerimeterWalls() {
-                // Top and bottom walls
-                for (let x = 0; x < this.width; x++) {
-                    this.map[0][x] = this.getRandomTile('wall');
-                    this.map[this.height - 1][x] = this.getRandomTile('wall');
-                }
+            const link = document.createElement('a');
+            link.download = 'generated-map.png';
+            link.href = canvas.toDataURL();
+            link.click();
+            showStatus('Map exported as PNG!', 'success');
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set up paint mode after a short delay to ensure DOM is ready
+            setTimeout(() => {
+                setupPaintMode();
                 
-                // Left and right walls
-                for (let y = 0; y < this.height; y++) {
-                    this.map[y][0] = this.getRandomTile('wall');
-                    this.map[y][this.width - 1] = this.getRandomTile('wall');
-                }
-            }
-            
-            addTavernBar() {
-                // Add bar along one wall
-                const barY = Math.floor(this.height * 0.2);
-                for (let x = 2; x < this.width - 2; x++) {
-                    if (this.isValidPosition(x, barY)) {
-                        this.map[barY][x] = this.getRandomTile('decoration');
-                    }
-                }
-            }
-            
-            addTavernTables() {
-                // Add scattered tables
-                const numTables = Math.floor((this.width * this.height) / 50);
-                for (let i = 0; i < numTables; i++) {
-                    const x = Math.floor(Math.random() * (this.width - 4)) + 2;
-                    const y = Math.floor(Math.random() * (this.height - 4)) + 2;
+                // Initialize the output canvas with a placeholder
+                const canvas = document.getElementById('outputCanvas');
+                if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = 512;
+                    canvas.height = 512;
                     
-                    if (this.isValidPosition(x, y) && Math.random() < 0.7) {
-                        this.map[y][x] = this.getRandomTile('decoration');
-                    }
+                    ctx.fillStyle = '#0a0a0a';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = '#333';
+                    ctx.font = '20px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Generated map will appear here', canvas.width/2, canvas.height/2);
                 }
-            }
-            
-            addTavernDecorations() {
-                // Add random decorative elements
-                for (let y = 1; y < this.height - 1; y++) {
-                    for (let x = 1; x < this.width - 1; x++) {
-                        if (Math.random() < 0.05) {
-                            this.map[y][x] = this.getRandomTile('decoration');
-                        }
-                    }
-                }
-            }
-            
-            addCastleFeatures(mainHall) {
-                // Add throne at the center back
-                const throneX = Math.floor(mainHall.x + mainHall.width / 2);
-                const throneY = mainHall.y + 1;
-                if (this.isValidPosition(throneX, throneY)) {
-                    this.map[throneY][throneX] = this.getRandomTile('decoration');
-                }
-                
-                // Add pillars
-                const pillarPositions = [
-                    { x: mainHall.x + 2, y: mainHall.y + 2 },
-                    { x: mainHall.x + mainHall.width - 3, y: mainHall.y + 2 },
-                    { x: mainHall.x + 2, y: mainHall.y + mainHall.height - 3 },
-                    { x: mainHall.x + mainHall.width - 3, y: mainHall.y + mainHall.height - 3 }
-                ];
-                
-                pillarPositions.forEach(pos => {
-                    if (this.isValidPosition(pos.x, pos.y)) {
-                        this.map[pos.y][pos.x] = this.getRandomTile('decoration');
-                    }
-                });
-            }
-            
-            addNaturalPaths() {
-                // Create winding paths
-                const numPaths = 2;
-                for (let i = 0; i < numPaths; i++) {
-                    this.createWindingPath();
-                }
-            }
-            
-            createWindingPath() {
-                let x = Math.floor(Math.random() * this.width);
-                let y = Math.floor(Math.random() * this.height);
-                
-                const pathLength = Math.floor(this.width * this.height * 0.1);
-                
-                for (let i = 0; i < pathLength; i++) {
-                    if (this.isValidPosition(x, y)) {
-                        this.map[y][x] = this.getRandomTile('decoration');
-                    }
-                    
-                    // Random walk
-                    const directions = [[-1,0], [1,0], [0,-1], [0,1]];
-                    const dir = directions[Math.floor(Math.random() * directions.length)];
-                    x = Math.max(0, Math.min(this.width - 1, x + dir[0]));
-                    y = Math.max(0, Math.min(this.height - 1, y + dir[1]));
-                }
-            }
-            
-            addNaturalFeatures() {
-                // Add random natural decorations (trees, rocks, etc.)
-                for (let y = 0; y < this.height; y++) {
-                    for (let x = 0; x < this.width; x++) {
-                        if (Math.random() < 0.1) {
-                            this.map[y][x] = this.getRandomTile('decoration');
-                        }
-                    }
-                }
-            }
-            
-            addCityStreets() {
-                // Add main streets
-                const mainStreetX = Math.floor(this.width / 2);
-                const mainStreetY = Math.floor(this.height / 2);
-                
-                // Vertical street
-                for (let y = 0; y < this.height; y++) {
-                    this.map[y][mainStreetX] = this.getRandomTile('floor');
-                    if (mainStreetX > 0) this.map[y][mainStreetX - 1] = this.getRandomTile('floor');
-                    if (mainStreetX < this.width - 1) this.map[y][mainStreetX + 1] = this.getRandomTile('floor');
-                }
-                
-                // Horizontal street
-                for (let x = 0; x < this.width; x++) {
-                    this.map[mainStreetY][x] = this.getRandomTile('floor');
-                    if (mainStreetY > 0) this.map[mainStreetY - 1][x] = this.getRandomTile('floor');
-                    if (mainStreetY < this.height - 1) this.map[mainStreetY + 1][x] = this.getRandomTile('floor');
-                }
-            }
-            
-            addCityBuildings() {
-                // Add building blocks in quadrants
-                const quadrants = [
-                    { x: 0, y: 0, width: Math.floor(this.width/2) - 2, height: Math.floor(this.height/2) - 2 },
-                    { x: Math.floor(this.width/2) + 2, y: 0, width: Math.floor(this.width/2) - 2, height: Math.floor(this.height/2) - 2 },
-                    { x: 0, y: Math.floor(this.height/2) + 2, width: Math.floor(this.width/2) - 2, height: Math.floor(this.height/2) - 2 },
-                    { x: Math.floor(this.width/2) + 2, y: Math.floor(this.height/2) + 2, width: Math.floor(this.width/2) - 2, height: Math.floor(this.height/2) - 2 }
-                ];
-                
-                quadrants.forEach(quad => {
-                    if (quad.width > 0 && quad.height > 0) {
-                        for (let y = quad.y; y < quad.y + quad.height; y++) {
-                            for (let x = quad.x; x < quad.x + quad.width; x++) {
-                                if (this.isValidPosition(x, y) && Math.random() < 0.7) {
-                                    this.map[y][x] = this.getRandomTile('wall');
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-            
-            isValidPosition(x, y) {
-                return x >= 0 && x < this.width && y >= 0 && y < this.height;
-            }
-        }
-
-        // Initialize the application
-        function initApp() {
-            try {
-                // Verify all required elements exist
-                const requiredElements = [
-                    'uploadArea', 'fileInput', 'tilesPreview', 'tileStats',
-                    'mapSize', 'tileSize', 'gridOpacity', 'gridOpacityValue',
-                    'environmentType', 'outputCanvas'
-                ];
-                
-                const missing = requiredElements.filter(id => !document.getElementById(id));
-                if (missing.length > 0) {
-
-                    console.error('Missing required elements:', missing);
-                    showStatus('App initialization failed - missing elements', 'error');
-                    return;
-                }
-                
-                // Initialize grid opacity display
-                updateGridOpacity();
-                
-                showStatus('Map Generator initialized successfully', 'success');
-                console.log('Map Generator 2D - Ready');
-                
-            } catch (error) {
-                console.error('App initialization error:', error);
-                showStatus('App initialization failed', 'error');
-            }
-        }
-
-        // Initialize when DOM is loaded
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initApp);
-        } else {
-            initApp();
-        }
+            }, 100);
+        });
     </script>
 </body>
 </html>
