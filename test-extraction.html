@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tile Extraction Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #fff;
+        }
+        .container {
+            background: #1a1a1a;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        .upload-area {
+            border: 3px dashed #333;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #0a0a0a;
+            margin-bottom: 20px;
+        }
+        .upload-area:hover {
+            border-color: #00ff88;
+            background: #111;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .control-group label {
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+        input, select, button {
+            background: #0a0a0a;
+            border: 2px solid #333;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        button {
+            background: linear-gradient(135deg, #00ff88 0%, #00aaff 100%);
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 255, 136, 0.3);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .tiles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+            padding: 20px;
+            background: #0a0a0a;
+            border-radius: 8px;
+        }
+        .tile-item {
+            border: 2px solid #333;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+            aspect-ratio: 1;
+        }
+        .tile-item img {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+        .tile-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            font-size: 10px;
+            padding: 2px;
+            text-align: center;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.success {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid #00ff88;
+        }
+        .status.error {
+            background: rgba(255, 68, 68, 0.2);
+            border: 1px solid #ff4444;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #aaa;
+        }
+        .atlas-info {
+            background: #111;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .atlas-info h3 {
+            color: #00ff88;
+            margin: 0 0 10px 0;
+        }
+        .test-summary {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid #00ff88;
+        }
+        .test-summary h3 {
+            margin-top: 0;
+            color: #00ff88;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 2D Map Generator - Tile Extraction Test</h1>
+        <p>Test the tile extraction API with atlas16.png (should extract 16 tiles from 4x4 grid)</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <p>📁 Drop atlas16.png here or click to browse</p>
+            <p style="margin-top: 10px; color: #666; font-size: 0.9rem;">Supported: PNG, JPG, WebP, GIF (max 10MB)</p>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+        
+        <div class="controls">
+            <div class="control-group">
+                <label>Grid Detection:</label>
+                <select id="gridType">
+                    <option value="auto">Auto-detect</option>
+                    <option value="preset">Preset Grid</option>
+                    <option value="custom">Custom Grid</option>
+                </select>
+            </div>
+            <div class="control-group" id="presetGroup" style="display: none;">
+                <label>Grid Size:</label>
+                <select id="gridPreset">
+                    <option value="2x2">2×2</option>
+                    <option value="4x4" selected>4×4</option>
+                    <option value="8x8">8×8</option>
+                    <option value="16x16">16×16</option>
+                </select>
+            </div>
+            <div class="control-group" id="customCols" style="display: none;">
+                <label>Columns:</label>
+                <input type="number" id="customColsInput" value="4" min="1" max="32">
+            </div>
+            <div class="control-group" id="customRows" style="display: none;">
+                <label>Rows:</label>
+                <input type="number" id="customRowsInput" value="4" min="1" max="32">
+            </div>
+            <div class="control-group">
+                <label>Tile Size:</label>
+                <input type="number" id="tileSize" value="32" min="8" max="128">
+            </div>
+        </div>
+        
+        <button id="extractBtn" disabled onclick="extractTiles()">Extract Tiles</button>
+        <button id="testAtlas16Btn" onclick="testAtlas16()" style="background: #ff6b35; margin-left: 10px;">🧪 Test Atlas16.jpg</button>
+        
+        <div id="statusArea"></div>
+        <div id="atlasInfo"></div>
+        <div id="tilesContainer"></div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+
+        // UI Setup
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const extractBtn = document.getElementById('extractBtn');
+        const statusArea = document.getElementById('statusArea');
+        const atlasInfo = document.getElementById('atlasInfo');
+        const tilesContainer = document.getElementById('tilesContainer');
+        const gridType = document.getElementById('gridType');
+
+        // Event Listeners
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', handleDragOver);
+        uploadArea.addEventListener('drop', handleDrop);
+        fileInput.addEventListener('change', handleFileSelect);
+        gridType.addEventListener('change', updateGridControls);
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#00ff88';
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#333';
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        }
+
+        function handleFile(file) {
+            const supportedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+            
+            if (!supportedTypes.includes(file.type)) {
+                showStatus('Unsupported file type. Please use PNG, JPG, WebP, or GIF.', 'error');
+                return;
+            }
+
+            if (file.size > 10 * 1024 * 1024) {
+                showStatus('File too large. Maximum size is 10MB.', 'error');
+                return;
+            }
+
+            selectedFile = file;
+            extractBtn.disabled = false;
+            showStatus(`Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'success');
+        }
+
+        function updateGridControls() {
+            const type = gridType.value;
+            const presetGroup = document.getElementById('presetGroup');
+            const customCols = document.getElementById('customCols');
+            const customRows = document.getElementById('customRows');
+
+            presetGroup.style.display = type === 'preset' ? 'block' : 'none';
+            customCols.style.display = type === 'custom' ? 'block' : 'none';
+            customRows.style.display = type === 'custom' ? 'block' : 'none';
+        }
+
+        function getGridConfig() {
+            const type = gridType.value;
+            
+            switch (type) {
+                case 'auto':
+                    return { type: 'auto' };
+                case 'preset':
+                    const preset = document.getElementById('gridPreset').value;
+                    const [cols, rows] = preset.split('x').map(Number);
+                    return { type: 'preset', cols, rows };
+                case 'custom':
+                    return {
+                        type: 'custom',
+                        cols: parseInt(document.getElementById('customColsInput').value),
+                        rows: parseInt(document.getElementById('customRowsInput').value)
+                    };
+                default:
+                    return { type: 'auto' };
+            }
+        }
+
+        async function extractTiles() {
+            if (!selectedFile) {
+                showStatus('Please select a file first.', 'error');
+                return;
+            }
+
+            extractBtn.disabled = true;
+            showStatus('Extracting tiles...', 'info');
+            tilesContainer.innerHTML = '<div class="loading">🔄 Processing image...</div>';
+
+            try {
+                const formData = new FormData();
+                formData.append('image', selectedFile);
+                formData.append('gridConfig', JSON.stringify(getGridConfig()));
+                formData.append('tileSize', document.getElementById('tileSize').value);
+
+                const response = await fetch('http://localhost:5000/api/tiles/extract', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    displayAtlasResults(result.data);
+                    showStatus(result.message || 'Tiles extracted successfully!', 'success');
+                } else {
+                    showStatus(result.error || 'Failed to extract tiles', 'error');
+                    tilesContainer.innerHTML = '';
+                }
+            } catch (error) {
+                console.error('Extraction error:', error);
+                showStatus('Network error: Could not connect to server', 'error');
+                tilesContainer.innerHTML = '';
+            }
+
+            extractBtn.disabled = false;
+        }
+
+        function displayAtlasResults(atlas) {
+            // Display atlas info
+            atlasInfo.innerHTML = `
+                <div class="atlas-info">
+                    <h3>📊 Atlas Information</h3>
+                    <p><strong>Name:</strong> ${atlas.name}</p>
+                    <p><strong>Original Size:</strong> ${atlas.originalImage.width}×${atlas.originalImage.height}px</p>
+                    <p><strong>Grid:</strong> ${atlas.grid.cols}×${atlas.grid.rows} (${atlas.grid.tileWidth}×${atlas.grid.tileHeight}px each)</p>
+                    <p><strong>Extracted Tiles:</strong> ${atlas.tiles.length}</p>
+                    <p><strong>Created:</strong> ${new Date(atlas.createdAt).toLocaleString()}</p>
+                </div>
+            `;
+
+            // Display extracted tiles
+            if (atlas.tiles.length > 0) {
+                const tilesHtml = atlas.tiles.map((tile, index) => `
+                    <div class="tile-item">
+                        <img src="${tile.imageData}" alt="Tile ${index + 1}">
+                        <div class="tile-info">
+                            ${tile.classification} (${Math.round(tile.confidence * 100)}%)
+                        </div>
+                    </div>
+                `).join('');
+
+                tilesContainer.innerHTML = `
+                    <h3>🎨 Extracted Tiles (${atlas.tiles.length})</h3>
+                    <div class="tiles-grid">${tilesHtml}</div>
+                `;
+            } else {
+                tilesContainer.innerHTML = '<div class="status error">No meaningful tiles found in the image.</div>';
+            }
+        }
+
+        function showStatus(message, type = 'info') {
+            statusArea.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // Test with atlas16.jpg automatically
+        async function testAtlas16() {
+            try {
+                showStatus('🧪 Testing with atlas16.jpg (4x4 grid)...', 'info');
+                
+                // Load atlas16.jpg file
+                const response = await fetch('../Textures/atlas16.jpg');
+                if (!response.ok) {
+                    throw new Error('Could not load atlas16.jpg');
+                }
+                const blob = await response.blob();
+                
+                // Create a File object
+                const file = new File([blob], 'atlas16.jpg', { type: 'image/jpeg' });
+                
+                // Set up for 4x4 grid
+                gridType.value = 'preset';
+                document.getElementById('gridPreset').value = '4x4';
+                document.getElementById('tileSize').value = '32';
+                updateGridControls();
+                
+                // Show file info
+                selectedFile = file;
+                showStatus(`Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'success');
+                
+                // Start extraction
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('gridConfig', JSON.stringify({
+                    type: 'preset',
+                    cols: 4,
+                    rows: 4
+                }));
+                formData.append('tileSize', '32');
+                
+                showStatus('📤 Uploading to server...', 'info');
+                extractBtn.disabled = true;
+                
+                const extractResponse = await fetch('http://localhost:5000/api/tiles/extract', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!extractResponse.ok) {
+                    throw new Error(`HTTP ${extractResponse.status}: ${extractResponse.statusText}`);
+                }
+                
+                const result = await extractResponse.json();
+                
+                if (result.success) {
+                    showStatus('✅ ATLAS16 TEST PASSED!', 'success');
+                    
+                    displayAtlasResults(result.data);
+                    
+                    // Add test summary
+                    const testSummary = document.createElement('div');
+                    testSummary.className = 'test-summary';
+                    testSummary.innerHTML = `
+                        <h3>🎯 Test Results Summary</h3>
+                        <p><strong>Expected:</strong> 16 tiles from 4×4 grid</p>
+                        <p><strong>Actual:</strong> ${result.data.tiles.length} tiles</p>
+                        <p><strong>Result:</strong> ${result.data.tiles.length === 16 ? '✅ PERFECT!' : '⚠️ UNEXPECTED COUNT'}</p>
+                        <p><strong>Grid Detection:</strong> ${result.data.grid.cols}×${result.data.grid.rows}</p>
+                        <p><strong>Tile Size:</strong> ${result.data.grid.tileWidth}×${result.data.grid.tileHeight}px</p>
+                    `;
+                    atlasInfo.appendChild(testSummary);
+                    
+                    if (result.data.tiles.length === 16) {
+                        showStatus('🚀 PERFECT! The API correctly extracted 16 tiles from the 4×4 atlas!', 'success');
+                    } else {
+                        showStatus(`⚠️ Expected 16 tiles but got ${result.data.tiles.length}`, 'error');
+                    }
+                } else {
+                    showStatus(`❌ Extraction failed: ${result.error}`, 'error');
+                }
+                
+            } catch (error) {
+                showStatus(`❌ Atlas16 test failed: ${error.message}`, 'error');
+                showStatus('💡 Make sure the backend server is running on port 5000', 'info');
+            } finally {
+                extractBtn.disabled = false;
+            }
+        }
+
+        // Initialize grid controls
+        updateGridControls();
+
+        // Auto-load atlas16.png if available
+        window.addEventListener('load', () => {
+            showStatus('Ready! Upload atlas16.png to test extraction (should give 16 tiles).', 'info');
+        });
+    </script>
+</body>
+</html>
