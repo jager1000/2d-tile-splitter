@@ -47,7 +47,6 @@ const atlases = new Map<string, TileAtlas>();
 const maps = new Map<string, GeneratedMap>();
 
 // Utility functions
-// Generic utilities
 const createResponse = <T>(success: boolean, data?: T, error?: string): APIResponse<T> => ({
   success,
   data,
@@ -72,7 +71,7 @@ const asyncHandler = (fn: (req: Request, res: Response) => Promise<APIResponse<a
     }
   };
 
-// Simplified validation
+// Validation
 const validate = {
   tileExtraction: (data: any) => {
     const tileSize = parseInt(data.tileSize);
@@ -177,7 +176,6 @@ class TileExtractionService {
 
         // Safety check to prevent extract_area errors
         if (x + grid.tileWidth > (metadata.width || 0) || y + grid.tileHeight > (metadata.height || 0)) {
-          console.warn(`Skipping tile at (${row}, ${col}) - would exceed image bounds`);
           continue;
         }
 
@@ -260,9 +258,6 @@ class MapGenerationService {
       throw new Error('No tiles available for map generation');
     }
 
-    console.log(`Generating ${width}x${height} map with environment: ${environmentType}`);
-    console.log('Tiles available:', Object.entries(tilesByType).map(([type, tiles]) => `${type}: ${tiles.length}`).join(', '));
-
     const cells = this.generateCells(width, height, tilesByType, environmentType);
 
     if (!cells || cells.length !== height || !cells[0] || cells[0].length !== width) {
@@ -285,9 +280,6 @@ class MapGenerationService {
   }
 
   private static generateCells(width: number, height: number, tilesByType: Record<TileClassification, string[]>, environmentType: EnvironmentType) {
-    const cells = [];
-    
-    // Generate layout based on environment type
     switch (environmentType) {
       case 'dungeon':
         return this.generateDungeonLayout(width, height, tilesByType);
@@ -514,7 +506,6 @@ class MapGenerationService {
 
   private static getRandomTile(tiles: string[]): string | null {
     if (!tiles || tiles.length === 0) {
-      console.warn('getRandomTile called with empty tiles array');
       return null;
     }
     return tiles[Math.floor(Math.random() * tiles.length)];
@@ -526,7 +517,7 @@ app.get('/', (req, res) => {
   res.json({
     success: true,
     message: 'Map Generator API',
-    endpoints: ['/extract-tiles', '/generate-map']
+    endpoints: ['/extract-tiles', '/generate-map', '/atlas/:id', '/map/:id']
   });
 });
 
@@ -582,7 +573,6 @@ app.get('/map/:id', (req, res) => {
 
 // Error handling
 app.use((err: Error & { status?: number }, req: Request, res: Response) => {
-  console.error(err);
   res.status(err.status || 500).json(createResponse(false, undefined, err.message || 'Internal server error'));
 });
 
@@ -601,9 +591,9 @@ const findAvailablePort = (startPort: number): Promise<number> => {
   });
 };
 
-// Start server with dynamic port
+// Start server
 const startServer = async () => {
-  const PORT = process.env.PORT ? parseInt(process.env.PORT) : await findAvailablePort(8890);
+  const PORT = process.env.PORT ? parseInt(process.env.PORT) : 8890;
   
   const server = app.listen(PORT, () => {
     console.log(`🚀 Backend server running on port ${PORT}`);
@@ -612,16 +602,14 @@ const startServer = async () => {
 
   // Graceful shutdown
   process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully');
     server.close(() => {
-      console.log('Process terminated');
+      process.exit(0);
     });
   });
 
   process.on('SIGINT', () => {
-    console.log('SIGINT received, shutting down gracefully');
     server.close(() => {
-      console.log('Process terminated');
+      process.exit(0);
     });
   });
 };

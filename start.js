@@ -2,34 +2,16 @@
 
 const { spawn } = require('child_process');
 const path = require('path');
-const net = require('net');
-
-// Function to find available port
-function findAvailablePort(startPort) {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.listen(startPort, () => {
-      const port = server.address().port;
-      server.close(() => resolve(port));
-    });
-    server.on('error', () => {
-      resolve(findAvailablePort(startPort + 1));
-    });
-  });
-}
 
 async function start() {
   console.log('🚀 Starting Map Generator 2D...\n');
 
-  // Find available ports
-  const backendPort = await findAvailablePort(8890);
-  const frontendPort = await findAvailablePort(3000);
+  // Fixed ports
+  const backendPort = 8890;
+  const frontendPort = 3000;
 
   console.log(`📊 Backend will run on port: ${backendPort}`);
   console.log(`🌐 Frontend will run on port: ${frontendPort}\n`);
-
-  // Set environment variables
-  process.env.PORT = backendPort.toString();
 
   // Start backend
   console.log('🔧 Starting backend server...');
@@ -70,14 +52,24 @@ async function start() {
   backendProcess.on('exit', (code) => {
     if (code !== 0) {
       console.error(`❌ Backend process exited with code ${code}`);
+      frontendProcess.kill('SIGTERM');
+      process.exit(1);
     }
   });
 
   frontendProcess.on('exit', (code) => {
     if (code !== 0) {
       console.error(`❌ Frontend process exited with code ${code}`);
+      backendProcess.kill('SIGTERM');
+      process.exit(1);
     }
   });
+
+  console.log('\n✨ Map Generator 2D is running!');
+  console.log(`🌐 Open http://localhost:${frontendPort} in your browser\n`);
 }
 
-start().catch(console.error);
+start().catch((error) => {
+  console.error('❌ Failed to start:', error);
+  process.exit(1);
+});

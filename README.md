@@ -1,248 +1,180 @@
-# 2D Map Generator
+# Smart 2D Map Generator
 
-An AI-powered 2D map generator with intelligent tile classification and procedural map generation.
+AI-powered tile classification and intelligent procedural map generation tool for game developers.
+
+![Map Generator](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Node](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen.svg)
 
 ## Features
 
-- 🖼️ **Smart Tile Extraction**: Upload any tileset image and automatically extract individual tiles
-- 🤖 **AI Classification**: Intelligent tile classification into floors, walls, and decorations
-- 🗺️ **Procedural Generation**: Generate diverse maps with intelligent tile placement
-- 🎨 **Real-time Preview**: See generated maps instantly in the browser
-- 📱 **Responsive UI**: Modern, clean interface that works on all devices
-- ⚡ **Fast & Reliable**: Built with modern tech stack for optimal performance
+- **Smart Tile Extraction**: Automatically extract individual tiles from texture atlases
+- **AI-Powered Classification**: Intelligent tile classification into floor, wall, and decoration types
+- **Procedural Map Generation**: Generate maps using various algorithms (Dungeon, Nature, City, Abstract)
+- **Flexible Grid System**: Support for auto-detection or custom grid configurations
+- **Real-time Preview**: See your tileset and generated maps instantly
+- **Export Functionality**: Export generated maps as PNG files
+- **Drag & Drop Interface**: Easy file upload with drag and drop support
+- **Keyboard Shortcuts**: Productivity shortcuts for power users
 
-## 🚀 Quick Start
+## Installation
 
-### Prerequisites
-- Node.js 18+ 
-- NPM or Yarn
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/jager1000/2d-tile-splitter.git
-   cd map-generator-2d
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm run install:all
-   ```
-
-3. **Start the application**
-   ```bash
-   npm start
-   ```
-
-The application will automatically:
-- Find available ports for both frontend and backend
-- Start the backend API server
-- Start the frontend development server  
-- Open your browser to the application
-
-**Alternative start methods:**
-- Windows PowerShell: `.\start.ps1`
-- Direct Node.js: `node start.js`
-This will start both backend (port 8890) and frontend (port 3004) simultaneously.
-
-### Option 2: Individual Commands
+1. Clone the repository:
 ```bash
-# Terminal 1 - Backend
-npm run dev:backend
-
-# Terminal 2 - Frontend  
-npm run dev:frontend
+git clone https://github.com/yourusername/map-generator-2d.git
+cd map-generator-2d
 ```
 
-### Alternative Commands
-```bash
-npm start        # Same as npm run dev
-npm run build    # Build both frontend and backend
-npm run clean    # Clean all node_modules and dist folders
-```
-
-## 📋 Setup Instructions
-
-1. **Install all dependencies:**
-   ```bash
-   npm run install:all
-   ```
-
-2. **Start the application:**
-   ```bash
-   npm run dev
-   ```
-
-3. **Open your browser:**
-   - Main App: http://localhost:3006/
-   - Test Page: http://localhost:3006/test.html
-
-## 🎮 How to Use
-
-1. **Upload a tileset image** (PNG, JPG, WebP)
-2. **Configure grid settings** (auto-detect, presets, or custom)
-3. **Review and classify tiles** (floor, wall, decoration)
-4. **Generate a map** with your preferred settings
-5. **Export** the generated map as PNG
-
-## 📝 Features
-
-- ✅ AI-powered tile classification
-- ✅ Multiple grid configuration options
-- ✅ Visual tile selection and manual classification
-- ✅ Intelligent map generation algorithms
-- ✅ Real-time canvas rendering
-- ✅ PNG export functionality
-- ✅ Responsive web interface
-
-## 🐛 Troubleshooting
-
-If you encounter port conflicts:
-- Backend runs on port 8890
-- Frontend runs on port 3006 (or next available)
-
-To reset everything:
-```bash
-npm run clean
-npm run install:all
-npm run dev
-```
-- Removed complex validation (Joi → simple functions)
-- Removed unnecessary middleware (helmet, compression, morgan)
-- In-memory storage instead of database
-- Simple error handling
-
-#### Frontend (`frontend/src/App-new.tsx`)
-- Merged MapGeneratorApp into App.tsx
-- Inline UI components (Button, Input, Select, Tooltip)
-- Removed React Query → native fetch
-- Removed Zustand → React state
-- Removed dropzone → native file input
-- Simple canvas rendering
-
-#### Dependencies Removed
-**Backend**:
-- swagger-jsdoc, swagger-ui-express
-- helmet, compression, morgan
-- joi (validation)
-
-**Frontend**:
-- @tanstack/react-query
-- zustand
-- axios
-- framer-motion
-- konva, react-konva
-- class-variance-authority, clsx, tailwind-merge
-- react-dropzone
-
-## Quick Start
-
-### Option 1: Use New Simplified Structure
-
-1. Install root dependencies:
-```bash
-npm install
-```
-
-2. Install all project dependencies:
+2. Install all dependencies:
 ```bash
 npm run install:all
 ```
 
-3. Replace old files with new simplified versions:
+## Usage
+
+### Starting the Application
+
 ```bash
-# Backend
-cp backend/package-new.json backend/package.json
-# Use backend/src/index.ts (already created)
-
-# Frontend  
-cp frontend/package-new.json frontend/package.json
-cp frontend/src/App-new.tsx frontend/src/App.tsx
+npm start
 ```
 
-4. Run both frontend and backend:
+This will:
+- Start the backend server on port 8890
+- Start the frontend development server on port 3000
+- Open your browser to http://localhost:3000
+
+### Basic Workflow
+
+1. **Upload a Tileset**
+   - Click the upload area or drag & drop your tileset image
+   - Supported formats: PNG, JPG, WebP, GIF (max 10MB)
+
+2. **Configure Grid**
+   - Choose a preset grid size (2×2, 4×4, 8×8, etc.)
+   - Or select "Custom" to specify your own grid dimensions
+
+3. **Classify Tiles**
+   - Click tiles to select them (Ctrl+Click for multiple selection)
+   - Assign classifications: Floor, Wall, or Decoration
+   - Use "Select All" and "Clear Selection" for bulk operations
+
+4. **Generate Map**
+   - Choose map size (16×16 to 128×128)
+   - Select environment type (Dungeon, Nature, City, Abstract)
+   - Click "Generate Map" to create your procedural map
+
+5. **Export**
+   - Click "Export as PNG" to download your generated map
+
+### Keyboard Shortcuts
+
+- **Ctrl/Cmd + G**: Generate Map
+- **Ctrl/Cmd + E**: Export Map
+- **Ctrl/Cmd + A**: Select All Tiles
+- **ESC**: Close Error/Success Messages
+
+## Development
+
+### Project Structure
+
+```
+map-generator-2d/
+├── frontend/           # React frontend application
+│   ├── src/
+│   │   ├── App.tsx    # Main application component
+│   │   └── ...
+│   └── package.json
+├── backend/            # Express backend server
+│   ├── src/
+│   │   └── index.ts   # Main server file
+│   └── package.json
+├── shared/             # Shared types and constants
+│   ├── types.ts
+│   └── constants.ts
+└── package.json        # Root package.json
+```
+
+### Running in Development
+
+Backend only:
 ```bash
-npm run dev
+cd backend && npm run dev
 ```
 
-### Option 2: Start Fresh
-
-1. Backup your current project
-2. Delete everything except the `/Textures` folder
-3. Copy the simplified files:
-   - `/shared/` folder
-   - `/backend/src/index.ts` + simplified package.json
-   - `/frontend/src/App-new.tsx` + simplified package.json
-   - Root `package.json`
-
-## File Structure (After Refactoring)
-
-```
-/
-├── shared/
-│   ├── types.ts (68 lines - all types)
-│   └── constants.ts (62 lines - all constants & validation)
-├── backend/
-│   ├── src/
-│   │   └── index.ts (440 lines - everything)
-│   └── package.json (simplified dependencies)
-├── frontend/
-│   ├── src/
-│   │   ├── App-new.tsx (580 lines - everything)
-│   │   └── main.tsx (unchanged)
-│   └── package.json (simplified dependencies)
-├── package.json (root dev scripts)
-└── Textures/ (unchanged)
+Frontend only:
+```bash
+cd frontend && npm run dev
 ```
 
-**Total**: ~1150 lines (was ~2500+)
+Both (recommended):
+```bash
+npm start
+```
 
-## Development Workflow
+### Building for Production
 
-1. **Start development**: `npm run dev`
-   - Backend runs on http://localhost:8888
-   - Frontend runs on http://localhost:3000
-   - API proxied through Vite
+```bash
+npm run build
+```
 
-2. **Add features**: Edit single files instead of multiple components
+This will create optimized builds in:
+- `backend/dist/` - Compiled TypeScript backend
+- `frontend/dist/` - Production React build
 
-3. **Build**: `npm run build`
+## API Endpoints
 
-4. **Clean**: `npm run clean` (removes all node_modules and dist folders)
+- `GET /` - API health check
+- `POST /extract-tiles` - Extract tiles from uploaded image
+- `POST /generate-map` - Generate a procedural map
+- `GET /atlas/:id` - Get tile atlas by ID
+- `GET /map/:id` - Get generated map by ID
 
-## Key Features Retained
+## Environment Types
 
-✅ Tile extraction with grid detection  
-✅ AI-powered tile classification  
-✅ Manual tile classification  
-✅ Map generation with multiple algorithms  
-✅ Canvas-based map rendering  
-✅ PNG export functionality  
-✅ Responsive UI with Tailwind  
-✅ TypeScript throughout  
-✅ File upload with validation  
-✅ Error handling and loading states  
+### Dungeon
+Creates room-and-corridor layouts typical of roguelike dungeons.
 
-## What Was Removed
+### Nature
+Generates organic patterns with clusters for natural environments.
 
-❌ Complex state management (Zustand)  
-❌ Advanced data fetching (React Query)  
-❌ Swagger documentation  
-❌ Multiple UI component files  
-❌ Complex validation schemas  
-❌ Unnecessary middleware  
-❌ Test files (can add back if needed)  
-❌ Advanced canvas libraries (Konva)  
-❌ Drag & drop (simplified to click upload)  
+### City
+Creates grid-based layouts with building blocks and streets.
 
-## Next Steps
+### Abstract
+Uses mathematical functions to create artistic patterns.
 
-This simplified structure makes it much easier to:
-- Add new features
-- Debug issues  
-- Understand the codebase
-- Deploy the application
-- Maintain the project
+## Troubleshooting
 
-The architecture prioritizes simplicity and maintainability over architectural purity, perfect for a focused map generation tool.
+### Backend Connection Issues
+- Ensure port 8890 is not in use
+- Check that backend dependencies are installed
+- Verify Node.js version is 16 or higher
+
+### Map Not Displaying
+- Check browser console for errors
+- Ensure tiles are properly classified
+- Verify the tileset image loaded correctly
+
+### Export Not Working
+- Generate a map first before exporting
+- Check browser permissions for downloads
+- Try a different browser if issues persist
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Built with React, TypeScript, and Express
+- Uses Sharp for image processing
+- Styled with Tailwind CSS
+- Icons from Lucide React
