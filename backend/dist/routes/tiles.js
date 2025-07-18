@@ -8,6 +8,7 @@ const express_1 = __importDefault(require("express"));
 const multer_1 = __importDefault(require("multer"));
 const joi_1 = __importDefault(require("joi"));
 const TileExtractionService_1 = require("../services/TileExtractionService");
+const MapGenerationService_1 = require("../services/MapGenerationService");
 const errorHandler_1 = require("../middleware/errorHandler");
 const constants_1 = require("../constants");
 const router = express_1.default.Router();
@@ -54,6 +55,7 @@ router.post('/extract', upload.single('image'), (0, errorHandler_1.asyncHandler)
     }
     try {
         const atlas = await TileExtractionService_1.TileExtractionService.extractTiles(extractReq.file.buffer, gridConfig, tileSize, extractReq.file.originalname);
+        MapGenerationService_1.MapGenerationService.storeAtlas(atlas);
         res.json({
             success: true,
             data: atlas,

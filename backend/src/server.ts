@@ -30,8 +30,14 @@ const swaggerOptions = {
       version: '1.0.0',
       description: 'API documentation for Map Generator backend',
     },
+    servers: [
+      {
+        url: 'http://localhost:8888',
+        description: 'Local development server'
+      }
+    ],
   },
-  apis: ['./routes/*.ts'], // Path to API docs
+  apis: ['./src/routes/*.ts'], // Path to API docs
 };
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -46,7 +52,7 @@ app.use(helmet({
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? ['https://your-frontend-domain.com'] 
-    : ['http://localhost:3000'],
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:3007', 'http://localhost:5173'],
   credentials: true,
 }));
 
@@ -87,11 +93,24 @@ app.use(errorHandler);
 
 const PORT = APP_CONFIG.PORT;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📝 Environment: ${APP_CONFIG.NODE_ENV}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`📚 Swagger docs: http://localhost:${PORT}/api-docs`);
-});
+const startServer = (port: number) => {
+  const server = app.listen(port, () => {
+    console.log(`🚀 Server running on port ${port}`);
+    console.log(`📝 Environment: ${APP_CONFIG.NODE_ENV}`);
+    console.log(`🔗 Health check: http://localhost:${port}/health`);
+    console.log(`📚 Swagger docs: http://localhost:${port}/api-docs`);
+  });
+
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`Port ${port} is in use, trying port ${port + 1}`);
+      startServer(port + 1);
+    } else {
+      console.error('Server error:', err);
+    }
+  });
+};
+
+startServer(PORT);
 
 export default app;

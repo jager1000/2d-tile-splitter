@@ -12,7 +12,36 @@ const constants_1 = require("./constants");
 const tiles_1 = require("./routes/tiles");
 const maps_1 = require("./routes/maps");
 const errorHandler_1 = require("./middleware/errorHandler");
+const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
+const swagger_jsdoc_1 = __importDefault(require("swagger-jsdoc"));
 const app = (0, express_1.default)();
+app.get('/', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Welcome to the Map Generator API',
+        docs: '/api-docs',
+        health: '/health'
+    });
+});
+const swaggerOptions = {
+    definition: {
+        openapi: '3.0.0',
+        info: {
+            title: 'Map Generator API',
+            version: '1.0.0',
+            description: 'API documentation for Map Generator backend',
+        },
+        servers: [
+            {
+                url: 'http://localhost:5000',
+                description: 'Local development server'
+            }
+        ],
+    },
+    apis: ['./src/routes/*.ts'],
+};
+const swaggerSpec = (0, swagger_jsdoc_1.default)(swaggerOptions);
+app.use('/api-docs', swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swaggerSpec));
 app.use((0, helmet_1.default)({
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false
@@ -49,6 +78,7 @@ app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📝 Environment: ${constants_1.APP_CONFIG.NODE_ENV}`);
     console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+    console.log(`📚 Swagger docs: http://localhost:${PORT}/api-docs`);
 });
 exports.default = app;
 //# sourceMappingURL=server.js.map

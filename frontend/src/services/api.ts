@@ -112,6 +112,10 @@ export class TileAtlasService {
 
     return response.data.data;
   }
+
+  static async getAtlases(): Promise<TileAtlas[]> {
+    return this.listAtlases();
+  }
 }
 
 export class MapGenerationService {

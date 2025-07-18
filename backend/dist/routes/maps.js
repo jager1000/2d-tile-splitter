@@ -8,8 +8,22 @@ const express_1 = __importDefault(require("express"));
 const joi_1 = __importDefault(require("joi"));
 const errorHandler_1 = require("../middleware/errorHandler");
 const constants_1 = require("../constants");
+const MapGenerationService_1 = require("../services/MapGenerationService");
 const router = express_1.default.Router();
 exports.mapRoutes = router;
+router.get('/test', (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    res.json({
+        success: true,
+        message: 'Map service is working correctly',
+        data: {
+            mapSizeRange: {
+                min: constants_1.APP_CONFIG.MIN_MAP_SIZE,
+                max: constants_1.APP_CONFIG.MAX_MAP_SIZE,
+            },
+            supportedEnvironments: Object.values(constants_1.ENVIRONMENT_TYPES),
+        },
+    });
+}));
 const generateMapSchema = joi_1.default.object({
     width: joi_1.default.number().integer().min(constants_1.APP_CONFIG.MIN_MAP_SIZE).max(constants_1.APP_CONFIG.MAX_MAP_SIZE).required(),
     height: joi_1.default.number().integer().min(constants_1.APP_CONFIG.MIN_MAP_SIZE).max(constants_1.APP_CONFIG.MAX_MAP_SIZE).required(),
@@ -30,31 +44,16 @@ router.post('/generate', (0, errorHandler_1.asyncHandler)(async (req, res) => {
     }
     const params = req.body;
     try {
-        const mockMap = {
-            id: `map-${Date.now()}`,
-            name: `Generated Map ${new Date().toLocaleTimeString()}`,
-            width: params.width,
-            height: params.height,
-            tileSize: params.tileSize,
-            cells: Array(params.height).fill(null).map((_, y) => Array(params.width).fill(null).map((_, x) => ({
-                x,
-                y,
-                tileId: null,
-                layer: 'floor',
-            }))),
-            environmentType: params.environmentType,
-            atlasId: params.atlasId,
-            createdAt: new Date(),
-        };
+        const generatedMap = MapGenerationService_1.MapGenerationService.generateMap(params);
         res.json({
             success: true,
-            data: mockMap,
+            data: generatedMap,
             message: `Successfully generated ${params.width}x${params.height} map`,
         });
     }
     catch (error) {
         console.error('Map generation error:', error);
-        throw (0, errorHandler_1.createError)(constants_1.ERROR_MESSAGES.GENERATION_FAILED, 500);
+        throw (0, errorHandler_1.createError)(error instanceof Error ? error.message : constants_1.ERROR_MESSAGES.GENERATION_FAILED, 500);
     }
 }));
 router.get('/:id', (0, errorHandler_1.asyncHandler)(async (req, res) => {
@@ -79,19 +78,6 @@ router.post('/', (0, errorHandler_1.asyncHandler)(async (req, res) => {
     res.json({
         success: true,
         message: 'Map saved successfully',
-    });
-}));
-router.get('/test', (0, errorHandler_1.asyncHandler)(async (req, res) => {
-    res.json({
-        success: true,
-        message: 'Map service is working correctly',
-        data: {
-            mapSizeRange: {
-                min: constants_1.APP_CONFIG.MIN_MAP_SIZE,
-                max: constants_1.APP_CONFIG.MAX_MAP_SIZE,
-            },
-            supportedEnvironments: ['auto', 'nature', 'dungeon', 'city', 'abstract'],
-        },
     });
 }));
 //# sourceMappingURL=maps.js.map

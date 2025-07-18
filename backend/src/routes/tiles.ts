@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import joi from 'joi';
 import { TileExtractionService } from '../services/TileExtractionService';
+import { MapGenerationService } from '../services/MapGenerationService';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { APP_CONFIG, ERROR_MESSAGES } from '../constants';
 import type { Request, Response } from 'express';
@@ -43,8 +44,43 @@ interface ExtractTilesRequest extends Request {
 }
 
 /**
- * POST /api/tiles/extract
- * Extract tiles from uploaded image atlas
+ * @swagger
+ * /api/tiles/extract:
+ *   post:
+ *     summary: Extract tiles from image atlas
+ *     description: Extract tiles from an uploaded image atlas based on grid configuration
+ *     tags:
+ *       - Tiles
+ *     consumes:
+ *       - multipart/form-data
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - image
+ *               - gridConfig
+ *               - tileSize
+ *             properties:
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Image atlas file
+ *               gridConfig:
+ *                 type: string
+ *                 description: JSON string with grid configuration
+ *               tileSize:
+ *                 type: string
+ *                 description: Size of each tile in pixels
+ *     responses:
+ *       200:
+ *         description: Tiles extracted successfully
+ *       400:
+ *         description: Invalid input data
+ *       500:
+ *         description: Extraction failed
  */
 router.post(
   '/extract',
@@ -81,6 +117,9 @@ router.post(
         extractReq.file.originalname
       );
 
+      // Store the atlas for later use in map generation
+      MapGenerationService.storeAtlas(atlas);
+
       res.json({
         success: true,
         data: atlas,
@@ -94,8 +133,32 @@ router.post(
 );
 
 /**
- * POST /api/tiles/classify
- * Classify tiles using AI analysis
+ * @swagger
+ * /api/tiles/classify:
+ *   post:
+ *     summary: Classify tiles
+ *     description: Classify tiles using AI analysis
+ *     tags:
+ *       - Tiles
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - atlasId
+ *             properties:
+ *               atlasId:
+ *                 type: string
+ *                 description: ID of the atlas to classify
+ *     responses:
+ *       200:
+ *         description: Tiles classified successfully
+ *       400:
+ *         description: Invalid atlas ID
+ *       500:
+ *         description: Classification failed
  */
 router.post(
   '/classify',
@@ -117,8 +180,40 @@ router.post(
 );
 
 /**
- * PATCH /api/tiles/:id/classification
- * Update tile classification manually
+ * @swagger
+ * /api/tiles/{id}/classification:
+ *   patch:
+ *     summary: Update tile classification
+ *     description: Update a tile's classification manually
+ *     tags:
+ *       - Tiles
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The tile ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - classification
+ *             properties:
+ *               classification:
+ *                 type: string
+ *                 enum: [floor, wall, decoration]
+ *                 description: The new classification type
+ *     responses:
+ *       200:
+ *         description: Tile classification updated successfully
+ *       400:
+ *         description: Invalid tile ID or classification
+ *       404:
+ *         description: Tile not found
  */
 router.patch(
   '/:id/classification',
@@ -143,8 +238,34 @@ router.patch(
 );
 
 /**
- * GET /api/tiles/test
- * Test endpoint to verify API is working
+ * @swagger
+ * /api/tiles/test:
+ *   get:
+ *     summary: Test tiles service
+ *     description: Test endpoint to verify tiles API is working
+ *     tags:
+ *       - Tiles
+ *     responses:
+ *       200:
+ *         description: Tiles service is working
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     supportedFormats:
+ *                       type: array
+ *                     maxFileSize:
+ *                       type: number
+ *                     tileSizeRange:
+ *                       type: object
  */
 router.get(
   '/test',

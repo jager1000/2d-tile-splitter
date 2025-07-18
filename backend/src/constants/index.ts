@@ -1,5 +1,5 @@
 export const APP_CONFIG = {
-  PORT: process.env.PORT || 5000,
+  PORT: 8888,
   NODE_ENV: process.env.NODE_ENV || 'development',
   MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
   SUPPORTED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],

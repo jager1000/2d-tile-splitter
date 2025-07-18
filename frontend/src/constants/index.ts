@@ -1,5 +1,5 @@
 export const APP_CONFIG = {
-  API_BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  API_BASE_URL: process.env.NODE_ENV === 'production' ? 'http://localhost:8889' : '/api',
   MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
   SUPPORTED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
   DEFAULT_TILE_SIZE: 32,

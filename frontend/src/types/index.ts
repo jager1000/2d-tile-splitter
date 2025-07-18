@@ -60,11 +60,7 @@ export interface MapGenerationParams {
   tileSize: number;
   environmentType: EnvironmentType;
   atlasId: string;
-  enabledLayers: {
-    floors: boolean;
-    walls: boolean;
-    decorations: boolean;
-  };
+  tilesByType: Record<TileClassification, string[]>;
   seed?: number;
 }
 
@@ -73,6 +69,8 @@ export interface AtlasGridConfig {
   cols?: number;
   rows?: number;
 }
+
+export type GridConfig = AtlasGridConfig;
 
 export interface TileExtractionParams {
   imageFile: File;
