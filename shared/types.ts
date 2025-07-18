@@ -1,8 +1,7 @@
-import { TILE_CLASSIFICATIONS, STATUS_TYPES, ENVIRONMENT_TYPES } from '@/constants';
-
-export type TileClassification = typeof TILE_CLASSIFICATIONS[keyof typeof TILE_CLASSIFICATIONS];
-export type StatusType = typeof STATUS_TYPES[keyof typeof STATUS_TYPES];
-export type EnvironmentType = typeof ENVIRONMENT_TYPES[number]['value'];
+// Shared types for both frontend and backend
+export type TileClassification = 'floor' | 'wall' | 'decoration';
+export type EnvironmentType = 'auto' | 'nature' | 'dungeon' | 'city' | 'abstract';
+export type StatusType = 'success' | 'error' | 'warning' | 'info';
 
 export interface Tile {
   id: string;
@@ -64,30 +63,16 @@ export interface MapGenerationParams {
   seed?: number;
 }
 
-export interface AtlasGridConfig {
+export interface GridConfig {
   type: 'auto' | 'preset' | 'custom';
   cols?: number;
   rows?: number;
 }
 
-export type GridConfig = AtlasGridConfig;
-
 export interface TileExtractionParams {
   imageFile: File;
-  gridConfig: AtlasGridConfig;
+  gridConfig: GridConfig;
   tileSize: number;
-}
-
-export interface TileClassificationResult {
-  tileId: string;
-  classification: TileClassification;
-  confidence: number;
-  features: {
-    dominantColor: { r: number; g: number; b: number };
-    brightness: number;
-    variance: number;
-    edges: number;
-  };
 }
 
 export interface APIResponse<T = unknown> {
@@ -95,17 +80,4 @@ export interface APIResponse<T = unknown> {
   data?: T;
   error?: string;
   message?: string;
-}
-
-export interface StatusMessage {
-  type: StatusType;
-  message: string;
-  duration?: number;
-}
-
-export interface PaintTool {
-  selectedTileId: string | null;
-  isActive: boolean;
-  brushSize: number;
-  mode: 'paint' | 'erase';
 }

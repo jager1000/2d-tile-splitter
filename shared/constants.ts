@@ -1,3 +1,4 @@
+// Shared constants for both frontend and backend
 export const APP_CONFIG = {
   API_BASE_URL: process.env.NODE_ENV === 'production' ? 'http://localhost:8889' : '/api',
   MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
@@ -47,3 +48,16 @@ export const STATUS_TYPES = {
   WARNING: 'warning',
   INFO: 'info',
 } as const;
+
+// Validation helpers
+export const isValidTileSize = (size: number): boolean => {
+  return size >= APP_CONFIG.MIN_TILE_SIZE && size <= APP_CONFIG.MAX_TILE_SIZE;
+};
+
+export const isValidMapSize = (size: number): boolean => {
+  return size >= APP_CONFIG.MIN_MAP_SIZE && size <= APP_CONFIG.MAX_MAP_SIZE;
+};
+
+export const isValidImageType = (type: string): boolean => {
+  return APP_CONFIG.SUPPORTED_IMAGE_TYPES.includes(type as any);
+};

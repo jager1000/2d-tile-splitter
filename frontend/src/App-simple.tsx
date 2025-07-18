@@ -1,15 +1,169 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { useDropzone } from 'react-dropzone';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Select } from './ui/select';
-import { Tooltip } from './ui/tooltip';
 import { Upload, FileImage, Settings, Wand2, Download, HelpCircle } from 'lucide-react';
-import { TileAtlasService, MapGenerationService } from '../services/api';
-import { GRID_PRESETS, ENVIRONMENT_TYPES, MAP_SIZE_PRESETS } from '../constants';
-import type { TileAtlas, GridConfig, TileClassification } from '../types';
 
-export const MapGeneratorApp: React.FC = () => {
+// Local types (simplified from shared/types.ts)
+type TileClassification = 'floor' | 'wall' | 'decoration';
+type EnvironmentType = 'auto' | 'nature' | 'dungeon' | 'city' | 'abstract';
+
+interface Tile {
+  id: string;
+  imageData: string;
+  classification: TileClassification;
+  confidence?: number;
+  metadata?: {
+    sourceX: number;
+    sourceY: number;
+    width: number;
+    height: number;
+  };
+}
+
+interface TileAtlas {
+  id: string;
+  name: string;
+  imageData: string;
+  originalImage: { width: number; height: number };
+  grid: { cols: number; rows: number; tileWidth: number; tileHeight: number };
+  tiles: Tile[];
+  createdAt: Date;
+}
+
+interface GridConfig {
+  type: 'auto' | 'preset' | 'custom';
+  cols?: number;
+  rows?: number;
+}
+
+// Local constants
+const GRID_PRESETS = [
+  { label: 'Auto-detect', value: 'auto' },
+  { label: '2×2', value: '2x2', cols: 2, rows: 2 },
+  { label: '4×4', value: '4x4', cols: 4, rows: 4 },
+  { label: '8×8', value: '8x8', cols: 8, rows: 8 },
+  { label: '16×16', value: '16x16', cols: 16, rows: 16 },
+  { label: '32×32', value: '32x32', cols: 32, rows: 32 },
+  { label: 'Custom', value: 'custom' },
+];
+
+const MAP_SIZE_PRESETS = [
+  { label: '16×16', value: 16 },
+  { label: '32×32', value: 32 },
+  { label: '64×64', value: 64 },
+  { label: '128×128', value: 128 },
+];
+
+const ENVIRONMENT_TYPES = [
+  { label: 'Auto-detect', value: 'auto' },
+  { label: 'Nature', value: 'nature' },
+  { label: 'Dungeon', value: 'dungeon' },
+  { label: 'City', value: 'city' },
+  { label: 'Abstract', value: 'abstract' },
+];
+
+// Inline UI Components
+const Button: React.FC<{
+  onClick?: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+  className?: string;
+  variant?: 'primary' | 'secondary';
+}> = ({ onClick, disabled, children, className = '', variant = 'primary' }) => {
+  const baseClasses = 'px-4 py-2 rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+  const variantClasses = variant === 'primary' 
+    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+    : 'bg-gray-600 hover:bg-gray-700 text-white';
+  
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`${baseClasses} ${variantClasses} ${className}`}
+    >
+      {children}
+    </button>
+  );
+};
+
+const Input: React.FC<{
+  type?: string;
+  value?: string | number;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+  min?: number;
+  max?: number;
+  className?: string;
+}> = ({ type = 'text', value, onChange, placeholder, min, max, className = '' }) => (
+  <input
+    type={type}
+    value={value}
+    onChange={onChange}
+    placeholder={placeholder}
+    min={min}
+    max={max}
+    className={`w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 ${className}`}
+  />
+);
+
+const Select: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  className?: string;
+}> = ({ value, onChange, options, className = '' }) => (
+  <select
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    className={`w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 ${className}`}
+  >
+    {options.map((option) => (
+      <option key={option.value} value={option.value}>
+        {option.label}
+      </option>
+    ))}
+  </select>
+);
+
+const Tooltip: React.FC<{
+  content: string;
+  children: React.ReactNode;
+  position?: string;
+}> = ({ content, children }) => (
+  <div className="relative group">
+    {children}
+    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+      {content}
+    </div>
+  </div>
+);
+
+// API Functions
+const api = {
+  extractTiles: async (data: FormData) => {
+    const response = await fetch('/api/extract-tiles', {
+      method: 'POST',
+      body: data,
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  },
+
+  generateMap: async (data: any) => {
+    const response = await fetch('/api/generate-map', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  },
+};
+
+// Main App Component
+export default function App() {
   const [tileAtlas, setTileAtlas] = useState<TileAtlas | null>(null);
   const [selectedTiles, setSelectedTiles] = useState<Set<string>>(new Set());
   const [tileClassifications, setTileClassifications] = useState<Map<string, TileClassification>>(new Map());
@@ -26,6 +180,7 @@ export const MapGeneratorApp: React.FC = () => {
   const [environmentType, setEnvironmentType] = useState('auto');
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleGridConfigChange = (value: string) => {
     setSelectedPreset(value);
@@ -35,7 +190,6 @@ export const MapGeneratorApp: React.FC = () => {
     } else if (value === 'custom') {
       setGridConfig({ type: 'custom' });
     } else {
-      // It's a preset like "4x4"
       const preset = GRID_PRESETS.find(p => p.value === value);
       if (preset && 'cols' in preset && 'rows' in preset) {
         setGridConfig({ 
@@ -47,32 +201,36 @@ export const MapGeneratorApp: React.FC = () => {
     }
   };
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
+  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
     setError(null);
     setIsExtracting(true);
 
     try {
-      const extractedAtlas = await TileAtlasService.extractTiles({
-        imageFile: file,
-        gridConfig,
-        tileSize,
-      });
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('gridConfig', JSON.stringify(gridConfig));
+      formData.append('tileSize', tileSize.toString());
+
+      const result = await api.extractTiles(formData);
       
-      setTileAtlas(extractedAtlas);
-      
-      // Auto-select all tiles and use their classifications
-      const allTileIds = new Set(extractedAtlas.tiles.map(tile => tile.id));
-      setSelectedTiles(allTileIds);
-      
-      const classifications = new Map();
-      extractedAtlas.tiles.forEach(tile => {
-        classifications.set(tile.id, tile.classification);
-      });
-      setTileClassifications(classifications);
-      
+      if (result.success && result.data) {
+        setTileAtlas(result.data);
+        
+        // Auto-select all tiles and use their classifications
+        const allTileIds = new Set<string>(result.data.tiles.map((tile: Tile) => tile.id));
+        setSelectedTiles(allTileIds);
+        
+        const classifications = new Map();
+        result.data.tiles.forEach((tile: Tile) => {
+          classifications.set(tile.id, tile.classification);
+        });
+        setTileClassifications(classifications);
+      } else {
+        throw new Error(result.error || 'Failed to extract tiles');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to extract tiles');
     } finally {
@@ -80,26 +238,16 @@ export const MapGeneratorApp: React.FC = () => {
     }
   }, [gridConfig, tileSize]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.gif']
-    },
-    multiple: false,
-  });
-
   const handleTileClick = (tileId: string, event: React.MouseEvent) => {
     const newSelected = new Set(selectedTiles);
     
     if (event.ctrlKey || event.metaKey) {
-      // Multi-select
       if (newSelected.has(tileId)) {
         newSelected.delete(tileId);
       } else {
         newSelected.add(tileId);
       }
     } else {
-      // Single select
       newSelected.clear();
       newSelected.add(tileId);
     }
@@ -119,7 +267,6 @@ export const MapGeneratorApp: React.FC = () => {
     });
     setTileClassifications(newClassifications);
     
-    // Clear selection after classification
     setSelectedTiles(new Set());
   };
 
@@ -133,7 +280,6 @@ export const MapGeneratorApp: React.FC = () => {
     setIsGenerating(true);
 
     try {
-      // Group tiles by classification
       const tilesByType: Record<TileClassification, string[]> = {
         floor: [],
         wall: [],
@@ -145,18 +291,20 @@ export const MapGeneratorApp: React.FC = () => {
         tilesByType[classification].push(tile.id);
       });
 
-      const generatedMap = await MapGenerationService.generateMap({
+      const result = await api.generateMap({
         atlasId: tileAtlas.id,
         width: mapSize,
         height: mapSize,
         tileSize: tileSize,
-        environmentType: environmentType as any,
+        environmentType: environmentType,
         tilesByType,
       });
 
-      // Render the map to canvas
-      renderMapToCanvas(generatedMap);
-      
+      if (result.success && result.data) {
+        renderMapToCanvas(result.data);
+      } else {
+        throw new Error(result.error || 'Failed to generate map');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate map');
     } finally {
@@ -165,7 +313,6 @@ export const MapGeneratorApp: React.FC = () => {
   };
 
   const renderMapToCanvas = (mapData: any) => {
-    // TODO: Implement actual map rendering based on mapData
     const canvas = canvasRef.current;
     if (!canvas || !tileAtlas) return;
 
@@ -175,21 +322,17 @@ export const MapGeneratorApp: React.FC = () => {
     canvas.width = mapSize * tileSize;
     canvas.height = mapSize * tileSize;
 
-    // Clear canvas
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // This would be implemented based on the actual map generation response format
-    // For now, just show a placeholder
+    // Simple placeholder rendering
     ctx.fillStyle = '#333';
     ctx.font = '20px monospace';
     ctx.textAlign = 'center';
     ctx.fillText('Generated map will appear here', canvas.width/2, canvas.height/2);
     
-    // Log mapData for debugging
     console.log('Map data received:', mapData);
     
-    // Convert canvas to data URL for export
     setGeneratedMapData(canvas.toDataURL());
   };
 
@@ -206,7 +349,7 @@ export const MapGeneratorApp: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-dark-200 text-white">
+    <div className="min-h-screen bg-gray-900 text-white">
       <div className="container mx-auto px-4 py-8">
         <header className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-2">Smart 2D Map Generator</h1>
@@ -217,30 +360,26 @@ export const MapGeneratorApp: React.FC = () => {
           {/* Sidebar Controls */}
           <div className="lg:col-span-1 space-y-6">
             {/* File Upload */}
-            <div className="bg-dark-100 rounded-lg p-6">
+            <div className="bg-gray-800 rounded-lg p-6">
               <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
                 <Upload className="w-5 h-5" />
                 1. Upload Tileset
               </h3>
               
               <div
-                {...getRootProps()}
-                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                  isDragActive 
-                    ? 'border-primary-400 bg-primary-500/10' 
-                    : 'border-gray-600 hover:border-primary-400'
-                }`}
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center cursor-pointer hover:border-blue-400 transition-colors"
               >
-                <input {...getInputProps()} />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
                 <FileImage className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                {isDragActive ? (
-                  <p>Drop the texture atlas here...</p>
-                ) : (
-                  <div>
-                    <p className="mb-2">Drag & drop a texture atlas, or click to select</p>
-                    <p className="text-sm text-gray-400">PNG, JPG, WebP, GIF (max 10MB)</p>
-                  </div>
-                )}
+                <p className="mb-2">Click to select a texture atlas</p>
+                <p className="text-sm text-gray-400">PNG, JPG, WebP, GIF (max 10MB)</p>
               </div>
 
               {/* Grid Configuration */}
@@ -248,10 +387,7 @@ export const MapGeneratorApp: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium mb-1 flex items-center gap-2">
                     Grid Configuration
-                    <Tooltip 
-                      content="Choose how to split your tileset image into individual tiles. Auto detects grid automatically, presets offer common grid sizes, or use custom for specific dimensions."
-                      position="right"
-                    >
+                    <Tooltip content="Choose how to split your tileset image into individual tiles">
                       <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-300 cursor-help" />
                     </Tooltip>
                   </label>
@@ -291,10 +427,7 @@ export const MapGeneratorApp: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium mb-1 flex items-center gap-2">
                     Tile Size
-                    <Tooltip 
-                      content="The size in pixels for each individual tile. This should match the actual tile dimensions in your texture atlas. Common sizes are 16px, 32px, or 64px."
-                      position="right"
-                    >
+                    <Tooltip content="The size in pixels for each individual tile">
                       <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-300 cursor-help" />
                     </Tooltip>
                   </label>
@@ -311,7 +444,7 @@ export const MapGeneratorApp: React.FC = () => {
 
             {/* Tile Classification */}
             {tileAtlas && (
-              <div className="bg-dark-100 rounded-lg p-6">
+              <div className="bg-gray-800 rounded-lg p-6">
                 <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
                   <Settings className="w-5 h-5" />
                   2. Classify Tiles
@@ -346,7 +479,7 @@ export const MapGeneratorApp: React.FC = () => {
                 </div>
 
                 {/* Tiles Grid */}
-                <div className="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto bg-dark-200 p-2 rounded">
+                <div className="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto bg-gray-700 p-2 rounded">
                   {tileAtlas.tiles.map((tile) => (
                     <div
                       key={tile.id}
@@ -375,7 +508,7 @@ export const MapGeneratorApp: React.FC = () => {
             )}
 
             {/* Map Generation Settings */}
-            <div className="bg-dark-100 rounded-lg p-6">
+            <div className="bg-gray-800 rounded-lg p-6">
               <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
                 <Wand2 className="w-5 h-5" />
                 3. Generate Map
@@ -385,10 +518,7 @@ export const MapGeneratorApp: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium mb-1 flex items-center gap-2">
                     Map Size
-                    <Tooltip 
-                      content="The dimensions of the generated map in tiles. A 32x32 map will have 1,024 tiles total. Larger maps take longer to generate but provide more detail."
-                      position="right"
-                    >
+                    <Tooltip content="The dimensions of the generated map in tiles">
                       <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-300 cursor-help" />
                     </Tooltip>
                   </label>
@@ -405,10 +535,7 @@ export const MapGeneratorApp: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium mb-1 flex items-center gap-2">
                     Environment Type
-                    <Tooltip 
-                      content="The style of map to generate. Different environments use different algorithms and tile placement patterns. Auto mode analyzes your tiles to choose the best approach."
-                      position="right"
-                    >
+                    <Tooltip content="The style of map to generate">
                       <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-300 cursor-help" />
                     </Tooltip>
                   </label>
@@ -427,7 +554,7 @@ export const MapGeneratorApp: React.FC = () => {
                 <Button
                   onClick={generateMap}
                   disabled={!tileAtlas || isGenerating}
-                  className="w-full bg-primary-600 hover:bg-primary-700"
+                  className="w-full"
                 >
                   {isGenerating ? 'Generating...' : 'Generate Map'}
                 </Button>
@@ -447,10 +574,10 @@ export const MapGeneratorApp: React.FC = () => {
 
           {/* Main Canvas Area */}
           <div className="lg:col-span-2">
-            <div className="bg-dark-100 rounded-lg p-6 h-full">
+            <div className="bg-gray-800 rounded-lg p-6 h-full">
               <h3 className="text-xl font-semibold mb-4">Generated Map</h3>
               
-              <div className="flex justify-center items-center bg-dark-200 rounded-lg p-4 min-h-96">
+              <div className="flex justify-center items-center bg-gray-700 rounded-lg p-4 min-h-96">
                 <canvas
                   ref={canvasRef}
                   className="border-2 border-gray-600 rounded max-w-full max-h-full"
@@ -465,14 +592,20 @@ export const MapGeneratorApp: React.FC = () => {
         {error && (
           <div className="fixed bottom-4 right-4 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg">
             {error}
+            <button 
+              onClick={() => setError(null)}
+              className="ml-2 text-red-200 hover:text-white"
+            >
+              ×
+            </button>
           </div>
         )}
 
         {/* Loading States */}
         {(isExtracting || isGenerating) && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-dark-100 rounded-lg p-6 text-center">
-              <div className="animate-spin w-8 h-8 border-2 border-primary-400 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <div className="bg-gray-800 rounded-lg p-6 text-center">
+              <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
               <p>{isExtracting ? 'Extracting tiles...' : 'Generating map...'}</p>
             </div>
           </div>
@@ -480,4 +613,4 @@ export const MapGeneratorApp: React.FC = () => {
       </div>
     </div>
   );
-};
+}

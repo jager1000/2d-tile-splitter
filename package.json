@@ -1,12 +1,20 @@
 {
-  "dependencies": {
-    "form-data": "^4.0.4",
-    "node-fetch": "^3.3.2",
-    "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
+  "name": "map-generator-2d",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Simplified 2D Map Generator",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "clean": "rimraf backend/dist frontend/dist backend/node_modules frontend/node_modules node_modules"
   },
   "devDependencies": {
-    "@types/swagger-jsdoc": "^6.0.4",
-    "@types/swagger-ui-express": "^4.1.8"
+    "concurrently": "^8.2.2",
+    "rimraf": "^5.0.5"
   }
 }
