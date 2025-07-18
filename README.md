@@ -1,23 +1,77 @@
-# Simplified 2D Map Generator
+# 2D Map Generator
 
-A streamlined tile-based map generator with AI-powered tile classification.
+AI-powered tile classification and intelligent map generation tool.
 
-## Refactoring Summary
+## 🚀 Quick Start
 
-This project has been simplified from ~2500 lines to under 1000 lines total by:
+### Option 1: Single Command (Recommended)
+```bash
+npm run dev
+```
+This will start both backend (port 8890) and frontend (port 3004) simultaneously.
 
-### Structure Changes
-- **Shared types/constants**: Single source of truth in `/shared/` folder
-- **Backend**: Consolidated to 1 main file (`backend/src/index.ts`)
-- **Frontend**: Merged components into single App file (`frontend/src/App-new.tsx`)
-- **Dependencies**: Removed 15+ unnecessary packages
+### Option 2: Individual Commands
+```bash
+# Terminal 1 - Backend
+npm run dev:backend
 
-### Key Simplifications
+# Terminal 2 - Frontend  
+npm run dev:frontend
+```
 
-#### Backend (`backend/src/index.ts`)
-- Merged all routes into one file
-- Merged all services into one file
-- Removed Swagger documentation
+### Alternative Commands
+```bash
+npm start        # Same as npm run dev
+npm run build    # Build both frontend and backend
+npm run clean    # Clean all node_modules and dist folders
+```
+
+## 📋 Setup Instructions
+
+1. **Install all dependencies:**
+   ```bash
+   npm run install:all
+   ```
+
+2. **Start the application:**
+   ```bash
+   npm run dev
+   ```
+
+3. **Open your browser:**
+   - Main App: http://localhost:3006/
+   - Test Page: http://localhost:3006/test.html
+
+## 🎮 How to Use
+
+1. **Upload a tileset image** (PNG, JPG, WebP)
+2. **Configure grid settings** (auto-detect, presets, or custom)
+3. **Review and classify tiles** (floor, wall, decoration)
+4. **Generate a map** with your preferred settings
+5. **Export** the generated map as PNG
+
+## 📝 Features
+
+- ✅ AI-powered tile classification
+- ✅ Multiple grid configuration options
+- ✅ Visual tile selection and manual classification
+- ✅ Intelligent map generation algorithms
+- ✅ Real-time canvas rendering
+- ✅ PNG export functionality
+- ✅ Responsive web interface
+
+## 🐛 Troubleshooting
+
+If you encounter port conflicts:
+- Backend runs on port 8890
+- Frontend runs on port 3006 (or next available)
+
+To reset everything:
+```bash
+npm run clean
+npm run install:all
+npm run dev
+```
 - Removed complex validation (Joi → simple functions)
 - Removed unnecessary middleware (helmet, compression, morgan)
 - In-memory storage instead of database

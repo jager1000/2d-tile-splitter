@@ -1,133 +1,70 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { Upload, FileImage, Settings, Wand2, Download, HelpCircle } from 'lucide-react';
+import type { 
+  Tile, 
+  TileAtlas, 
+  TileClassification, 
+  EnvironmentType, 
+  GridConfig,
+  APIResponse 
+} from '../../shared/types';
+import { 
+  GRID_PRESETS, 
+  MAP_SIZE_PRESETS, 
+  ENVIRONMENT_TYPES,
+  APP_CONFIG 
+} from '../../shared/constants';
 
-// Local types (simplified from shared/types.ts)
-type TileClassification = 'floor' | 'wall' | 'decoration';
-type EnvironmentType = 'auto' | 'nature' | 'dungeon' | 'city' | 'abstract';
-
-interface Tile {
-  id: string;
-  imageData: string;
-  classification: TileClassification;
-  confidence?: number;
-  metadata?: {
-    sourceX: number;
-    sourceY: number;
-    width: number;
-    height: number;
-  };
-}
-
-interface TileAtlas {
-  id: string;
-  name: string;
-  imageData: string;
-  originalImage: { width: number; height: number };
-  grid: { cols: number; rows: number; tileWidth: number; tileHeight: number };
-  tiles: Tile[];
-  createdAt: Date;
-}
-
-interface GridConfig {
-  type: 'auto' | 'preset' | 'custom';
-  cols?: number;
-  rows?: number;
-}
-
-// Local constants
-const GRID_PRESETS = [
-  { label: 'Auto-detect', value: 'auto' },
-  { label: '2×2', value: '2x2', cols: 2, rows: 2 },
-  { label: '4×4', value: '4x4', cols: 4, rows: 4 },
-  { label: '8×8', value: '8x8', cols: 8, rows: 8 },
-  { label: '16×16', value: '16x16', cols: 16, rows: 16 },
-  { label: '32×32', value: '32x32', cols: 32, rows: 32 },
-  { label: 'Custom', value: 'custom' },
-];
-
-const MAP_SIZE_PRESETS = [
-  { label: '16×16', value: 16 },
-  { label: '32×32', value: 32 },
-  { label: '64×64', value: 64 },
-  { label: '128×128', value: 128 },
-];
-
-const ENVIRONMENT_TYPES = [
-  { label: 'Auto-detect', value: 'auto' },
-  { label: 'Nature', value: 'nature' },
-  { label: 'Dungeon', value: 'dungeon' },
-  { label: 'City', value: 'city' },
-  { label: 'Abstract', value: 'abstract' },
-];
-
-// Inline UI Components
-const Button: React.FC<{
-  onClick?: () => void;
-  disabled?: boolean;
-  children: React.ReactNode;
-  className?: string;
-  variant?: 'primary' | 'secondary';
-}> = ({ onClick, disabled, children, className = '', variant = 'primary' }) => {
+// UI Components
+const Button = ({ 
+  variant = 'primary', 
+  className = '', 
+  children, 
+  ...props 
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' }) => {
   const baseClasses = 'px-4 py-2 rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-  const variantClasses = variant === 'primary' 
-    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-    : 'bg-gray-600 hover:bg-gray-700 text-white';
+  const variantClasses = {
+    primary: 'bg-blue-600 hover:bg-blue-700 text-white',
+    secondary: 'bg-gray-600 hover:bg-gray-700 text-white'
+  };
+  
+  const finalClassName = `${baseClasses} ${variantClasses[variant]} ${className}`.trim();
   
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`${baseClasses} ${variantClasses} ${className}`}
-    >
+    <button className={finalClassName} {...props}>
       {children}
     </button>
   );
 };
 
-const Input: React.FC<{
-  type?: string;
-  value?: string | number;
-  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  placeholder?: string;
-  min?: number;
-  max?: number;
-  className?: string;
-}> = ({ type = 'text', value, onChange, placeholder, min, max, className = '' }) => (
-  <input
-    type={type}
-    value={value}
-    onChange={onChange}
-    placeholder={placeholder}
-    min={min}
-    max={max}
-    className={`w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 ${className}`}
-  />
-);
+const Input = ({ 
+  className = '', 
+  ...props 
+}: React.InputHTMLAttributes<HTMLInputElement>) => {
+  const baseClasses = 'w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500';
+  const finalClassName = `${baseClasses} ${className}`.trim();
+  
+  return <input className={finalClassName} {...props} />;
+};
 
-const Select: React.FC<{
+const Select = ({ value, onChange, options, className = '' }: {
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
   className?: string;
-}> = ({ value, onChange, options, className = '' }) => (
+}) => (
   <select
     value={value}
     onChange={(e) => onChange(e.target.value)}
     className={`w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 ${className}`}
   >
-    {options.map((option) => (
-      <option key={option.value} value={option.value}>
-        {option.label}
-      </option>
+    {options.map(({ value, label }) => (
+      <option key={value} value={value}>{label}</option>
     ))}
   </select>
 );
 
-const Tooltip: React.FC<{
-  content: string;
-  children: React.ReactNode;
-  position?: string;
-}> = ({ content, children }) => (
+const Tooltip = ({ content, children }: { content: string; children: React.ReactNode }) => (
   <div className="relative group">
     {children}
     <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
@@ -136,107 +73,195 @@ const Tooltip: React.FC<{
   </div>
 );
 
-// API Functions
-const api = {
-  extractTiles: async (data: FormData) => {
-    const response = await fetch('/api/extract-tiles', {
-      method: 'POST',
-      body: data,
+// Generic API wrapper
+const createAPI = (baseURL = '/api') => {
+  const request = async (endpoint: string, options: RequestInit = {}): Promise<any> => {
+    console.log(`Making API request to: ${baseURL}${endpoint}`);
+    const response = await fetch(`${baseURL}${endpoint}`, {
+      headers: { 'Content-Type': 'application/json', ...options.headers },
+      ...options,
     });
+    
+    console.log(`API response status: ${response.status}`);
+    
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    return response.json();
-  },
+    
+    const result = await response.json();
+    console.log('API response:', result);
+    return result;
+  };
 
-  generateMap: async (data: any) => {
-    const response = await fetch('/api/generate-map', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return response.json();
+  return {
+    extractTiles: (formData: FormData) => {
+      console.log('Extracting tiles with FormData');
+      return fetch(`${baseURL}/extract-tiles`, { 
+        method: 'POST', 
+        body: formData 
+      }).then(response => {
+        console.log(`Extract tiles response status: ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      }).then(result => {
+        console.log('Extract tiles response:', result);
+        return result;
+      });
+    },
+    generateMap: (data: any) => 
+      request('/generate-map', { method: 'POST', body: JSON.stringify(data) }),
+  };
+};
+
+const api = createAPI();
+
+// State management with useReducer
+interface AppState {
+  tileAtlas: TileAtlas | null;
+  selectedTiles: Set<string>;
+  tileClassifications: Map<string, TileClassification>;
+  isExtracting: boolean;
+  isGenerating: boolean;
+  generatedMapData: string | null;
+  error: string | null;
+  config: {
+    grid: GridConfig;
+    selectedPreset: string;
+    tileSize: number;
+    mapSize: number;
+    environmentType: string;
+  };
+}
+
+type AppAction = 
+  | { type: 'SET_EXTRACTING'; payload: boolean }
+  | { type: 'SET_GENERATING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_TILE_ATLAS'; payload: TileAtlas }
+  | { type: 'SET_SELECTED_TILES'; payload: Set<string> }
+  | { type: 'SET_TILE_CLASSIFICATIONS'; payload: Map<string, TileClassification> }
+  | { type: 'SET_GENERATED_MAP'; payload: string | null }
+  | { type: 'UPDATE_CONFIG'; payload: Partial<AppState['config']> };
+
+const initialState: AppState = {
+  tileAtlas: null,
+  selectedTiles: new Set(),
+  tileClassifications: new Map(),
+  isExtracting: false,
+  isGenerating: false,
+  generatedMapData: null,
+  error: null,
+  config: {
+    grid: { type: 'auto' },
+    selectedPreset: 'auto',
+    tileSize: APP_CONFIG.DEFAULT_TILE_SIZE,
+    mapSize: APP_CONFIG.DEFAULT_MAP_SIZE,
+    environmentType: 'auto',
   },
+};
+
+const appReducer = (state: AppState, action: AppAction): AppState => {
+  switch (action.type) {
+    case 'SET_EXTRACTING':
+      return { ...state, isExtracting: action.payload };
+    case 'SET_GENERATING':
+      return { ...state, isGenerating: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
+    case 'SET_TILE_ATLAS':
+      return { ...state, tileAtlas: action.payload };
+    case 'SET_SELECTED_TILES':
+      return { ...state, selectedTiles: action.payload };
+    case 'SET_TILE_CLASSIFICATIONS':
+      return { ...state, tileClassifications: action.payload };
+    case 'SET_GENERATED_MAP':
+      return { ...state, generatedMapData: action.payload };
+    case 'UPDATE_CONFIG':
+      return { ...state, config: { ...state.config, ...action.payload } };
+    default:
+      return state;
+  }
 };
 
 // Main App Component
 export default function App() {
-  const [tileAtlas, setTileAtlas] = useState<TileAtlas | null>(null);
-  const [selectedTiles, setSelectedTiles] = useState<Set<string>>(new Set());
-  const [tileClassifications, setTileClassifications] = useState<Map<string, TileClassification>>(new Map());
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedMapData, setGeneratedMapData] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Configuration state
-  const [gridConfig, setGridConfig] = useState<GridConfig>({ type: 'auto' });
-  const [selectedPreset, setSelectedPreset] = useState('auto');
-  const [tileSize, setTileSize] = useState(32);
-  const [mapSize, setMapSize] = useState(32);
-  const [environmentType, setEnvironmentType] = useState('auto');
+  const [state, dispatch] = React.useReducer(appReducer, initialState);
+  const { tileAtlas, selectedTiles, tileClassifications, isExtracting, isGenerating, generatedMapData, error, config } = state;
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Test API connectivity on component mount
+  React.useEffect(() => {
+    const testConnection = async () => {
+      try {
+        const response = await fetch('/api/');
+        const data = await response.json();
+        console.log('Backend connection test successful:', data);
+      } catch (err) {
+        console.error('Backend connection test failed:', err);
+        dispatch({ type: 'SET_ERROR', payload: 'Cannot connect to backend server' });
+      }
+    };
+    
+    testConnection();
+  }, []);
+
   const handleGridConfigChange = (value: string) => {
-    setSelectedPreset(value);
+    const newConfig: Partial<AppState['config']> = { selectedPreset: value };
     
     if (value === 'auto') {
-      setGridConfig({ type: 'auto' });
+      newConfig.grid = { type: 'auto' };
     } else if (value === 'custom') {
-      setGridConfig({ type: 'custom' });
+      newConfig.grid = { type: 'custom' };
     } else {
       const preset = GRID_PRESETS.find(p => p.value === value);
       if (preset && 'cols' in preset && 'rows' in preset) {
-        setGridConfig({ 
-          type: 'preset', 
-          cols: preset.cols, 
-          rows: preset.rows 
-        });
+        newConfig.grid = { type: 'preset', cols: preset.cols, rows: preset.rows };
       }
     }
+    
+    dispatch({ type: 'UPDATE_CONFIG', payload: newConfig });
   };
 
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setError(null);
-    setIsExtracting(true);
+    dispatch({ type: 'SET_ERROR', payload: null });
+    dispatch({ type: 'SET_EXTRACTING', payload: true });
 
     try {
       const formData = new FormData();
       formData.append('image', file);
-      formData.append('gridConfig', JSON.stringify(gridConfig));
-      formData.append('tileSize', tileSize.toString());
+      formData.append('gridConfig', JSON.stringify(config.grid));
+      formData.append('tileSize', config.tileSize.toString());
 
       const result = await api.extractTiles(formData);
       
       if (result.success && result.data) {
-        setTileAtlas(result.data);
+        dispatch({ type: 'SET_TILE_ATLAS', payload: result.data });
         
         // Auto-select all tiles and use their classifications
-        const allTileIds = new Set(result.data.tiles.map((tile: Tile) => tile.id));
-        setSelectedTiles(allTileIds);
+        const allTileIds = new Set<string>(result.data.tiles.map((tile: Tile) => tile.id));
+        dispatch({ type: 'SET_SELECTED_TILES', payload: allTileIds });
         
         const classifications = new Map();
         result.data.tiles.forEach((tile: Tile) => {
           classifications.set(tile.id, tile.classification);
         });
-        setTileClassifications(classifications);
+        dispatch({ type: 'SET_TILE_CLASSIFICATIONS', payload: classifications });
       } else {
         throw new Error(result.error || 'Failed to extract tiles');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to extract tiles');
+      dispatch({ type: 'SET_ERROR', payload: err instanceof Error ? err.message : 'Failed to extract tiles' });
     } finally {
-      setIsExtracting(false);
+      dispatch({ type: 'SET_EXTRACTING', payload: false });
     }
-  }, [gridConfig, tileSize]);
+  }, [config.grid, config.tileSize]);
 
   const handleTileClick = (tileId: string, event: React.MouseEvent) => {
     const newSelected = new Set(selectedTiles);
@@ -252,12 +277,12 @@ export default function App() {
       newSelected.add(tileId);
     }
     
-    setSelectedTiles(newSelected);
+    dispatch({ type: 'SET_SELECTED_TILES', payload: newSelected });
   };
 
   const updateTileClassification = (classification: TileClassification) => {
     if (selectedTiles.size === 0) {
-      setError('Please select tiles first');
+      dispatch({ type: 'SET_ERROR', payload: 'Please select tiles first' });
       return;
     }
 
@@ -265,19 +290,18 @@ export default function App() {
     selectedTiles.forEach(tileId => {
       newClassifications.set(tileId, classification);
     });
-    setTileClassifications(newClassifications);
-    
-    setSelectedTiles(new Set());
+    dispatch({ type: 'SET_TILE_CLASSIFICATIONS', payload: newClassifications });
+    dispatch({ type: 'SET_SELECTED_TILES', payload: new Set() });
   };
 
   const generateMap = async () => {
     if (!tileAtlas) {
-      setError('Please upload and extract tiles first');
+      dispatch({ type: 'SET_ERROR', payload: 'Please upload and extract tiles first' });
       return;
     }
 
-    setError(null);
-    setIsGenerating(true);
+    dispatch({ type: 'SET_ERROR', payload: null });
+    dispatch({ type: 'SET_GENERATING', payload: true });
 
     try {
       const tilesByType: Record<TileClassification, string[]> = {
@@ -293,10 +317,10 @@ export default function App() {
 
       const result = await api.generateMap({
         atlasId: tileAtlas.id,
-        width: mapSize,
-        height: mapSize,
-        tileSize: tileSize,
-        environmentType: environmentType,
+        width: config.mapSize,
+        height: config.mapSize,
+        tileSize: config.tileSize,
+        environmentType: config.environmentType,
         tilesByType,
       });
 
@@ -306,9 +330,9 @@ export default function App() {
         throw new Error(result.error || 'Failed to generate map');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate map');
+      dispatch({ type: 'SET_ERROR', payload: err instanceof Error ? err.message : 'Failed to generate map' });
     } finally {
-      setIsGenerating(false);
+      dispatch({ type: 'SET_GENERATING', payload: false });
     }
   };
 
@@ -319,26 +343,81 @@ export default function App() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    canvas.width = mapSize * tileSize;
-    canvas.height = mapSize * tileSize;
+    canvas.width = mapData.width * mapData.tileSize;
+    canvas.height = mapData.height * mapData.tileSize;
 
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Simple placeholder rendering
-    ctx.fillStyle = '#333';
-    ctx.font = '20px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('Generated map will appear here', canvas.width/2, canvas.height/2);
+    // Render the actual map
+    if (mapData.cells && Array.isArray(mapData.cells)) {
+      console.log('Rendering map with cells:', mapData.cells.length);
+      
+      // Create a map of tile IDs to their image data
+      const tileMap = new Map();
+      tileAtlas.tiles.forEach(tile => {
+        tileMap.set(tile.id, tile.imageData);
+      });
+
+      // Render each cell
+      for (let y = 0; y < mapData.cells.length; y++) {
+        for (let x = 0; x < mapData.cells[y].length; x++) {
+          const cell = mapData.cells[y][x];
+          
+          if (cell.tileId) {
+            const tileImageData = tileMap.get(cell.tileId);
+            if (tileImageData) {
+              const img = new Image();
+              img.onload = () => {
+                ctx.drawImage(
+                  img,
+                  x * mapData.tileSize,
+                  y * mapData.tileSize,
+                  mapData.tileSize,
+                  mapData.tileSize
+                );
+              };
+              img.src = tileImageData;
+            } else {
+              // Fallback: draw colored square
+              const tile = tileAtlas.tiles.find(t => t.id === cell.tileId);
+              if (tile) {
+                let color = '#333';
+                switch (tile.classification) {
+                  case 'floor': color = '#8b5a2b'; break;
+                  case 'wall': color = '#666'; break;
+                  case 'decoration': color = '#4ade80'; break;
+                }
+                ctx.fillStyle = color;
+                ctx.fillRect(
+                  x * mapData.tileSize,
+                  y * mapData.tileSize,
+                  mapData.tileSize,
+                  mapData.tileSize
+                );
+              }
+            }
+          }
+        }
+      }
+    } else {
+      // Fallback display
+      ctx.fillStyle = '#666';
+      ctx.font = '16px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Map structure not recognized', canvas.width/2, canvas.height/2);
+      console.warn('Map data structure unexpected:', mapData);
+    }
     
-    console.log('Map data received:', mapData);
-    
-    setGeneratedMapData(canvas.toDataURL());
+    // Update the data URL after a short delay to allow images to load
+    setTimeout(() => {
+      dispatch({ type: 'SET_GENERATED_MAP', payload: canvas.toDataURL() });
+    }, 500);
   };
 
   const exportMap = () => {
     if (!generatedMapData) {
-      setError('No map to export');
+      dispatch({ type: 'SET_ERROR', payload: 'No map to export' });
       return;
     }
 
@@ -353,7 +432,17 @@ export default function App() {
       <div className="container mx-auto px-4 py-8">
         <header className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-2">Smart 2D Map Generator</h1>
-          <p className="text-gray-400">AI-powered tile classification and intelligent map generation</p>
+          <p className="text-gray-400 mb-4">AI-powered tile classification and intelligent map generation</p>
+          <div className="flex justify-center items-center gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-green-400">Frontend Ready</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <span className="text-blue-400">Backend: {window.location.protocol}//{window.location.hostname}:8891</span>
+            </div>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -368,7 +457,7 @@ export default function App() {
               
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center cursor-pointer hover:border-blue-400 transition-colors"
+                className="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center cursor-pointer hover:border-blue-400 transition-all duration-300 hover:bg-gray-700/50 group"
               >
                 <input
                   ref={fileInputRef}
@@ -377,9 +466,12 @@ export default function App() {
                   onChange={handleFileUpload}
                   className="hidden"
                 />
-                <FileImage className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <p className="mb-2">Click to select a texture atlas</p>
+                <FileImage className="w-12 h-12 mx-auto mb-4 text-gray-400 group-hover:text-blue-400 transition-colors" />
+                <p className="mb-2 font-medium">Click to select a texture atlas</p>
                 <p className="text-sm text-gray-400">PNG, JPG, WebP, GIF (max 10MB)</p>
+                <div className="mt-3 text-xs text-gray-500">
+                  Supports automatic tile detection or custom grid configurations
+                </div>
               </div>
 
               {/* Grid Configuration */}
@@ -392,7 +484,7 @@ export default function App() {
                     </Tooltip>
                   </label>
                   <Select
-                    value={selectedPreset}
+                    value={config.selectedPreset}
                     onChange={handleGridConfigChange}
                     options={GRID_PRESETS.map(preset => ({ 
                       value: preset.value, 
@@ -401,24 +493,34 @@ export default function App() {
                   />
                 </div>
                 
-                {selectedPreset === 'custom' && (
+                {config.selectedPreset === 'custom' && (
                   <div className="grid grid-cols-2 gap-2">
                     <Input
                       type="number"
                       placeholder="Columns"
-                      value={gridConfig.cols || ''}
-                      onChange={(e) => setGridConfig({ 
-                        ...gridConfig, 
-                        cols: parseInt(e.target.value) || undefined 
+                      value={config.grid.cols || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => dispatch({ 
+                        type: 'UPDATE_CONFIG', 
+                        payload: { 
+                          grid: { 
+                            ...config.grid, 
+                            cols: parseInt(e.target.value) || undefined 
+                          } 
+                        } 
                       })}
                     />
                     <Input
                       type="number"
                       placeholder="Rows"
-                      value={gridConfig.rows || ''}
-                      onChange={(e) => setGridConfig({ 
-                        ...gridConfig, 
-                        rows: parseInt(e.target.value) || undefined 
+                      value={config.grid.rows || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => dispatch({ 
+                        type: 'UPDATE_CONFIG', 
+                        payload: { 
+                          grid: { 
+                            ...config.grid, 
+                            rows: parseInt(e.target.value) || undefined 
+                          } 
+                        } 
                       })}
                     />
                   </div>
@@ -433,10 +535,13 @@ export default function App() {
                   </label>
                   <Input
                     type="number"
-                    value={tileSize}
-                    onChange={(e) => setTileSize(parseInt(e.target.value) || 32)}
-                    min={8}
-                    max={128}
+                    value={config.tileSize}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => dispatch({ 
+                      type: 'UPDATE_CONFIG', 
+                      payload: { tileSize: parseInt(e.target.value) || APP_CONFIG.DEFAULT_TILE_SIZE } 
+                    })}
+                    min={APP_CONFIG.MIN_TILE_SIZE}
+                    max={APP_CONFIG.MAX_TILE_SIZE}
                   />
                 </div>
               </div>
@@ -458,21 +563,21 @@ export default function App() {
                   <Button 
                     onClick={() => updateTileClassification('floor')}
                     disabled={selectedTiles.size === 0}
-                    className="w-full bg-green-600 hover:bg-green-700"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white"
                   >
                     Mark as Floor ({selectedTiles.size} selected)
                   </Button>
                   <Button 
                     onClick={() => updateTileClassification('wall')}
                     disabled={selectedTiles.size === 0}
-                    className="w-full bg-red-600 hover:bg-red-700"
+                    className="w-full bg-red-600 hover:bg-red-700 text-white"
                   >
                     Mark as Wall ({selectedTiles.size} selected)
                   </Button>
                   <Button 
                     onClick={() => updateTileClassification('decoration')}
                     disabled={selectedTiles.size === 0}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                   >
                     Mark as Decoration ({selectedTiles.size} selected)
                   </Button>
@@ -523,8 +628,11 @@ export default function App() {
                     </Tooltip>
                   </label>
                   <Select
-                    value={mapSize.toString()}
-                    onChange={(value) => setMapSize(parseInt(value))}
+                    value={config.mapSize.toString()}
+                    onChange={(value) => dispatch({ 
+                      type: 'UPDATE_CONFIG', 
+                      payload: { mapSize: parseInt(value) } 
+                    })}
                     options={MAP_SIZE_PRESETS.map(preset => ({ 
                       value: preset.value.toString(), 
                       label: preset.label 
@@ -540,8 +648,11 @@ export default function App() {
                     </Tooltip>
                   </label>
                   <Select
-                    value={environmentType}
-                    onChange={setEnvironmentType}
+                    value={config.environmentType}
+                    onChange={(value) => dispatch({ 
+                      type: 'UPDATE_CONFIG', 
+                      payload: { environmentType: value } 
+                    })}
                     options={ENVIRONMENT_TYPES.map(type => ({ 
                       value: type.value, 
                       label: type.label 
@@ -554,9 +665,19 @@ export default function App() {
                 <Button
                   onClick={generateMap}
                   disabled={!tileAtlas || isGenerating}
-                  className="w-full"
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-3"
                 >
-                  {isGenerating ? 'Generating...' : 'Generate Map'}
+                  {isGenerating ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Generating...
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2">
+                      <Wand2 className="w-4 h-4" />
+                      Generate Map
+                    </div>
+                  )}
                 </Button>
 
                 <Button
@@ -575,14 +696,30 @@ export default function App() {
           {/* Main Canvas Area */}
           <div className="lg:col-span-2">
             <div className="bg-gray-800 rounded-lg p-6 h-full">
-              <h3 className="text-xl font-semibold mb-4">Generated Map</h3>
+              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <FileImage className="w-5 h-5" />
+                Generated Map
+                {generatedMapData && (
+                  <span className="text-sm bg-green-600 text-white px-2 py-1 rounded text-xs ml-auto">
+                    Ready
+                  </span>
+                )}
+              </h3>
               
-              <div className="flex justify-center items-center bg-gray-700 rounded-lg p-4 min-h-96">
-                <canvas
-                  ref={canvasRef}
-                  className="border-2 border-gray-600 rounded max-w-full max-h-full"
-                  style={{ imageRendering: 'pixelated' }}
-                />
+              <div className="flex justify-center items-center bg-gray-700 rounded-lg p-4 min-h-96 relative">
+                {!generatedMapData ? (
+                  <div className="text-center text-gray-400">
+                    <FileImage className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <p className="text-lg font-medium mb-2">No map generated yet</p>
+                    <p className="text-sm">Upload a tileset and generate a map to see it here</p>
+                  </div>
+                ) : (
+                  <canvas
+                    ref={canvasRef}
+                    className="border-2 border-gray-600 rounded max-w-full max-h-full shadow-lg"
+                    style={{ imageRendering: 'pixelated' }}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -590,23 +727,34 @@ export default function App() {
 
         {/* Error Display */}
         {error && (
-          <div className="fixed bottom-4 right-4 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg">
-            {error}
-            <button 
-              onClick={() => setError(null)}
-              className="ml-2 text-red-200 hover:text-white"
-            >
-              ×
-            </button>
+          <div className="fixed bottom-4 right-4 bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg max-w-md z-50 animate-slide-up">
+            <div className="flex items-start gap-3">
+              <div className="text-red-200">⚠️</div>
+              <div className="flex-1">
+                <div className="font-medium text-sm">Error</div>
+                <div className="text-red-100 text-sm">{error}</div>
+              </div>
+              <button 
+                onClick={() => dispatch({ type: 'SET_ERROR', payload: null })}
+                className="text-red-200 hover:text-white text-lg leading-none"
+              >
+                ×
+              </button>
+            </div>
           </div>
         )}
 
         {/* Loading States */}
         {(isExtracting || isGenerating) && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-lg p-6 text-center">
-              <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
-              <p>{isExtracting ? 'Extracting tiles...' : 'Generating map...'}</p>
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
+            <div className="bg-gray-800 rounded-lg p-8 text-center border border-gray-600 shadow-2xl">
+              <div className="w-12 h-12 border-4 border-blue-400/30 border-t-blue-400 rounded-full animate-spin mx-auto mb-4"></div>
+              <div className="text-lg font-medium mb-2">
+                {isExtracting ? 'Extracting tiles from image...' : 'Generating map...'}
+              </div>
+              <div className="text-sm text-gray-400">
+                {isExtracting ? 'Analyzing tileset and classifying tiles' : 'Creating procedural map layout'}
+              </div>
             </div>
           </div>
         )}

@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #1a1a1a; 
+            color: white; 
+        }
+        .test-section { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #333; 
+            border-radius: 8px;
+            background: #2a2a2a;
+        }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+        .warning { color: #fbbf24; }
+        button { 
+            background: #3b82f6; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin: 5px;
+        }
+        button:hover { background: #2563eb; }
+        input { 
+            background: #374151; 
+            color: white; 
+            border: 1px solid #6b7280; 
+            padding: 8px; 
+            border-radius: 4px; 
+            margin: 5px;
+        }
+        pre { 
+            background: #111; 
+            padding: 10px; 
+            border-radius: 4px; 
+            overflow-x: auto;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .tiles-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 5px;
+            margin: 10px 0;
+        }
+        .tile {
+            width: 40px;
+            height: 40px;
+            border: 2px solid #666;
+            cursor: pointer;
+            image-rendering: pixelated;
+        }
+        .tile.selected {
+            border-color: #3b82f6;
+        }
+        #mapCanvas {
+            border: 2px solid #666;
+            image-rendering: pixelated;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Frontend Test Page</h1>
+    
+    <div class="test-section">
+        <h2>1. Backend Connection Test</h2>
+        <button onclick="testBackendConnection()">Test Backend</button>
+        <div id="backend-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. File Upload Test</h2>
+        <input type="file" id="fileInput" accept="image/*">
+        <button onclick="testFileUpload()">Upload & Extract Tiles</button>
+        <div id="upload-result"></div>
+        <div id="tiles-display" class="tiles-grid"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Map Generation Test</h2>
+        <button onclick="testMapGeneration()" id="generateBtn" disabled>Generate Map</button>
+        <div id="map-result"></div>
+        <canvas id="mapCanvas" width="400" height="400"></canvas>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Debug Information</h2>
+        <pre id="debug-info">Click "Test Backend" to start...</pre>
+    </div>
+
+    <script>
+        let currentAtlas = null;
+        let selectedTiles = new Set();
+
+        function log(message, type = 'info') {
+            const debugInfo = document.getElementById('debug-info');
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+            debugInfo.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+            debugInfo.scrollTop = debugInfo.scrollHeight;
+        }
+
+        async function testBackendConnection() {
+            const resultDiv = document.getElementById('backend-result');
+            resultDiv.innerHTML = '<div class="warning">Testing...</div>';
+            
+            try {
+                const response = await fetch('/api/');
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `<div class="success">✅ Backend connected successfully</div>
+                                         <pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    log('Backend connection successful', 'success');
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Backend responded but with error</div>`;
+                    log('Backend responded with error', 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Backend connection failed: ${error.message}</div>
+                                     <div class="warning">Make sure backend is running on port 8890</div>`;
+                log(`Backend connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testFileUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const resultDiv = document.getElementById('upload-result');
+            const tilesDiv = document.getElementById('tiles-display');
+            
+            if (!fileInput.files[0]) {
+                resultDiv.innerHTML = '<div class="error">❌ Please select a file first</div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<div class="warning">Uploading and extracting tiles...</div>';
+            
+            try {
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+                formData.append('gridConfig', JSON.stringify({ type: 'preset', cols: 4, rows: 4 }));
+                formData.append('tileSize', '32');
+
+                const response = await fetch('/api/extract-tiles', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    currentAtlas = result.data;
+                    resultDiv.innerHTML = `<div class="success">✅ Tiles extracted successfully</div>
+                                         <div>Atlas ID: ${result.data.id}</div>
+                                         <div>Tiles count: ${result.data.tiles.length}</div>`;
+                    
+                    // Display tiles
+                    tilesDiv.innerHTML = '';
+                    result.data.tiles.forEach(tile => {
+                        const img = document.createElement('img');
+                        img.src = tile.imageData;
+                        img.className = 'tile';
+                        img.title = `${tile.id} - ${tile.classification}`;
+                        img.onclick = () => {
+                            if (selectedTiles.has(tile.id)) {
+                                selectedTiles.delete(tile.id);
+                                img.classList.remove('selected');
+                            } else {
+                                selectedTiles.add(tile.id);
+                                img.classList.add('selected');
+                            }
+                        };
+                        tilesDiv.appendChild(img);
+                    });
+
+                    document.getElementById('generateBtn').disabled = false;
+                    log(`Tiles extracted: ${result.data.tiles.length} tiles`, 'success');
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Tile extraction failed: ${result.error}</div>`;
+                    log(`Tile extraction failed: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Upload failed: ${error.message}</div>`;
+                log(`Upload failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testMapGeneration() {
+            if (!currentAtlas) {
+                document.getElementById('map-result').innerHTML = '<div class="error">❌ Please extract tiles first</div>';
+                return;
+            }
+
+            const resultDiv = document.getElementById('map-result');
+            resultDiv.innerHTML = '<div class="warning">Generating map...</div>';
+
+            try {
+                const tilesByType = {
+                    floor: currentAtlas.tiles.filter(t => t.classification === 'floor').map(t => t.id),
+                    wall: currentAtlas.tiles.filter(t => t.classification === 'wall').map(t => t.id),
+                    decoration: currentAtlas.tiles.filter(t => t.classification === 'decoration').map(t => t.id)
+                };
+
+                const mapData = {
+                    atlasId: currentAtlas.id,
+                    width: 16,
+                    height: 16,
+                    tileSize: 32,
+                    environmentType: 'dungeon',
+                    tilesByType
+                };
+
+                const response = await fetch('/api/generate-map', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(mapData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    resultDiv.innerHTML = `<div class="success">✅ Map generated successfully</div>
+                                         <div>Map ID: ${result.data.id}</div>
+                                         <div>Size: ${result.data.width}x${result.data.height}</div>`;
+                    
+                    // Render map to canvas
+                    renderMapToCanvas(result.data);
+                    log(`Map generated: ${result.data.width}x${result.data.height}`, 'success');
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Map generation failed: ${result.error}</div>`;
+                    log(`Map generation failed: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Map generation failed: ${error.message}</div>`;
+                log(`Map generation failed: ${error.message}`, 'error');
+            }
+        }
+
+        function renderMapToCanvas(mapData) {
+            const canvas = document.getElementById('mapCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Simple visualization - just draw colored squares for each tile type
+            const cellSize = Math.min(canvas.width / mapData.width, canvas.height / mapData.height);
+            
+            if (mapData.cells && Array.isArray(mapData.cells)) {
+                for (let y = 0; y < mapData.cells.length; y++) {
+                    for (let x = 0; x < mapData.cells[y].length; x++) {
+                        const cell = mapData.cells[y][x];
+                        let color = '#333'; // default
+                        
+                        if (cell.tileId) {
+                            const tile = currentAtlas.tiles.find(t => t.id === cell.tileId);
+                            if (tile) {
+                                switch (tile.classification) {
+                                    case 'floor': color = '#8b5a2b'; break;
+                                    case 'wall': color = '#666'; break;
+                                    case 'decoration': color = '#4ade80'; break;
+                                }
+                            }
+                        }
+                        
+                        ctx.fillStyle = color;
+                        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+                    }
+                }
+            } else {
+                // Fallback visualization
+                ctx.fillStyle = '#666';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Map structure not as expected', canvas.width/2, canvas.height/2);
+                log('Warning: Map data structure unexpected', 'warning');
+            }
+        }
+
+        // Auto-test backend on load
+        window.onload = () => {
+            log('Frontend test page loaded');
+            testBackendConnection();
+        };
+    </script>
+</body>
+</html>

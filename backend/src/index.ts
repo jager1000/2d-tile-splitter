@@ -4,106 +4,23 @@ import multer from 'multer';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import type { Request, Response, NextFunction } from 'express';
-
-// Local types and constants
-type TileClassification = 'floor' | 'wall' | 'decoration';
-type EnvironmentType = 'auto' | 'nature' | 'dungeon' | 'city' | 'abstract';
-
-interface Tile {
-  id: string;
-  imageData: string;
-  classification: TileClassification;
-  confidence?: number;
-  metadata?: {
-    sourceX: number;
-    sourceY: number;
-    width: number;
-    height: number;
-  };
-}
-
-interface TileAtlas {
-  id: string;
-  name: string;
-  imageData: string;
-  originalImage: {
-    width: number;
-    height: number;
-  };
-  grid: {
-    cols: number;
-    rows: number;
-    tileWidth: number;
-    tileHeight: number;
-  };
-  tiles: Tile[];
-  createdAt: Date;
-}
-
-interface MapCell {
-  x: number;
-  y: number;
-  tileId: string | null;
-  layer: 'floor' | 'wall' | 'decoration';
-}
-
-interface GeneratedMap {
-  id: string;
-  name: string;
-  width: number;
-  height: number;
-  tileSize: number;
-  cells: MapCell[][];
-  environmentType: EnvironmentType;
-  atlasId: string;
-  createdAt: Date;
-}
-
-interface MapGenerationParams {
-  width: number;
-  height: number;
-  tileSize: number;
-  environmentType: EnvironmentType;
-  atlasId: string;
-  tilesByType: Record<TileClassification, string[]>;
-  seed?: number;
-}
-
-interface GridConfig {
-  type: 'auto' | 'preset' | 'custom';
-  cols?: number;
-  rows?: number;
-}
-
-interface APIResponse<T = unknown> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
-}
-
-const APP_CONFIG = {
-  MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
-  SUPPORTED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
-  DEFAULT_TILE_SIZE: 32,
-  MAX_TILE_SIZE: 128,
-  MIN_TILE_SIZE: 8,
-  DEFAULT_MAP_SIZE: 32,
-  MAX_MAP_SIZE: 128,
-  MIN_MAP_SIZE: 8,
-} as const;
-
-const isValidTileSize = (size: number): boolean => {
-  return size >= APP_CONFIG.MIN_TILE_SIZE && size <= APP_CONFIG.MAX_TILE_SIZE;
-};
-
-const isValidMapSize = (size: number): boolean => {
-  return size >= APP_CONFIG.MIN_MAP_SIZE && size <= APP_CONFIG.MAX_MAP_SIZE;
-};
-
-const isValidImageType = (type: string): boolean => {
-  return (APP_CONFIG.SUPPORTED_IMAGE_TYPES as readonly string[]).includes(type);
-};
+import type { 
+  Tile, 
+  TileAtlas, 
+  TileClassification, 
+  EnvironmentType, 
+  GridConfig, 
+  MapCell, 
+  GeneratedMap, 
+  MapGenerationParams, 
+  APIResponse 
+} from '../../shared/types';
+import { 
+  APP_CONFIG, 
+  isValidTileSize, 
+  isValidMapSize, 
+  isValidImageType 
+} from '../../shared/constants';
 
 const app = express();
 
@@ -130,47 +47,50 @@ const atlases = new Map<string, TileAtlas>();
 const maps = new Map<string, GeneratedMap>();
 
 // Utility functions
-interface CustomError extends Error {
-  status?: number;
-}
+// Generic utilities
+const createResponse = <T>(success: boolean, data?: T, error?: string): APIResponse<T> => ({
+  success,
+  data,
+  error,
+});
 
-const createError = (message: string, status = 500): CustomError => {
-  const error: CustomError = new Error(message);
+const createError = (message: string, status = 500): Error & { status: number } => {
+  const error = new Error(message) as Error & { status: number };
   error.status = status;
   return error;
 };
 
-const asyncHandler = (fn: (req: Request, res: Response) => Promise<void>) => 
-  (req: Request, res: Response, next: NextFunction) => {
-    Promise.resolve(fn(req, res)).catch(next);
+const asyncHandler = (fn: (req: Request, res: Response) => Promise<APIResponse<any>>) => 
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await fn(req, res);
+      res.json(result);
+    } catch (error) {
+      const status = (error as any).status || 500;
+      const message = error instanceof Error ? error.message : 'Internal server error';
+      res.status(status).json(createResponse(false, undefined, message));
+    }
   };
 
-// Simple validation
-interface TileExtractionData {
-  gridConfig: string;
-  tileSize: string;
-}
-
-const validateTileExtraction = (data: TileExtractionData) => {
-  if (!data.gridConfig || !data.tileSize) {
-    throw createError('Missing required fields', 400);
-  }
-  if (!isValidTileSize(parseInt(data.tileSize))) {
-    throw createError('Invalid tile size', 400);
-  }
-};
-
-const validateMapGeneration = (data: MapGenerationParams) => {
-  const { width, height, tileSize, environmentType, atlasId, tilesByType } = data;
-  if (!width || !height || !tileSize || !environmentType || !atlasId || !tilesByType) {
-    throw createError('Missing required fields', 400);
-  }
-  if (!isValidMapSize(width) || !isValidMapSize(height)) {
-    throw createError('Invalid map size', 400);
-  }
-  if (!isValidTileSize(tileSize)) {
-    throw createError('Invalid tile size', 400);
-  }
+// Simplified validation
+const validate = {
+  tileExtraction: (data: any) => {
+    const tileSize = parseInt(data.tileSize);
+    if (!data.gridConfig) throw createError('Missing grid configuration', 400);
+    if (!isValidTileSize(tileSize)) throw createError('Invalid tile size', 400);
+    return { gridConfig: JSON.parse(data.gridConfig), tileSize };
+  },
+  
+  mapGeneration: (data: MapGenerationParams) => {
+    const { width, height, tileSize, environmentType, atlasId, tilesByType } = data;
+    if (!width || !height || !tileSize || !environmentType || !atlasId || !tilesByType) {
+      throw createError('Missing required fields', 400);
+    }
+    if (!isValidMapSize(width) || !isValidMapSize(height) || !isValidTileSize(tileSize)) {
+      throw createError('Invalid dimensions', 400);
+    }
+    return data;
+  },
 };
 
 // Services
@@ -220,7 +140,16 @@ class TileExtractionService {
       };
     }
 
-    // Auto-detect or preset - use simple heuristics
+    if (config.type === 'preset' && config.cols && config.rows) {
+      return {
+        cols: config.cols,
+        rows: config.rows,
+        tileWidth: Math.floor(imageDimensions.width / config.cols),
+        tileHeight: Math.floor(imageDimensions.height / config.rows),
+      };
+    }
+
+    // Auto-detect - use simple heuristics
     const defaultCols = 8;
     const defaultRows = 8;
     
@@ -238,14 +167,23 @@ class TileExtractionService {
     tileSize: number
   ): Promise<Tile[]> {
     const tiles: Tile[] = [];
-    const image = sharp(imageBuffer);
+    const baseImage = sharp(imageBuffer);
+    const metadata = await baseImage.metadata();
 
     for (let row = 0; row < grid.rows; row++) {
       for (let col = 0; col < grid.cols; col++) {
         const x = col * grid.tileWidth;
         const y = row * grid.tileHeight;
 
-        const tileBuffer = await image
+        // Safety check to prevent extract_area errors
+        if (x + grid.tileWidth > (metadata.width || 0) || y + grid.tileHeight > (metadata.height || 0)) {
+          console.warn(`Skipping tile at (${row}, ${col}) - would exceed image bounds`);
+          continue;
+        }
+
+        // Use clone() to avoid Sharp instance reuse issues
+        const tileBuffer = await baseImage
+          .clone()
           .extract({
             left: x,
             top: y,
@@ -372,72 +310,51 @@ app.post('/extract-tiles', upload.single('image'), asyncHandler(async (req, res)
     throw createError('No image file provided', 400);
   }
 
-  const { gridConfig: gridConfigStr, tileSize: tileSizeStr } = req.body;
+  const validated = validate.tileExtraction(req.body);
   
-  validateTileExtraction({ gridConfig: gridConfigStr, tileSize: tileSizeStr });
-
-  const gridConfig = JSON.parse(gridConfigStr) as GridConfig;
-  const tileSize = parseInt(tileSizeStr);
-
   const atlas = await TileExtractionService.extractTiles(
     req.file.buffer,
-    gridConfig,
-    tileSize,
+    validated.gridConfig,
+    validated.tileSize,
     req.file.originalname
   );
 
   atlases.set(atlas.id, atlas);
-
-  const response: APIResponse<TileAtlas> = {
-    success: true,
-    data: atlas,
-  };
-
-  res.json(response);
+  return createResponse(true, atlas);
 }));
 
 app.post('/generate-map', asyncHandler(async (req, res) => {
-  validateMapGeneration(req.body);
-
-  const map = await MapGenerationService.generateMap(req.body);
+  const validatedData = validate.mapGeneration(req.body);
+  const map = await MapGenerationService.generateMap(validatedData);
   maps.set(map.id, map);
-
-  const response: APIResponse<GeneratedMap> = {
-    success: true,
-    data: map,
-  };
-
-  res.json(response);
+  return createResponse(true, map);
 }));
 
 app.get('/atlas/:id', (req, res) => {
   const atlas = atlases.get(req.params.id);
   if (!atlas) {
-    res.status(404).json({ success: false, error: 'Atlas not found' });
+    res.status(404).json(createResponse(false, undefined, 'Atlas not found'));
     return;
   }
-  res.json({ success: true, data: atlas });
+  res.json(createResponse(true, atlas));
 });
 
 app.get('/map/:id', (req, res) => {
   const map = maps.get(req.params.id);
   if (!map) {
-    res.status(404).json({ success: false, error: 'Map not found' });
+    res.status(404).json(createResponse(false, undefined, 'Map not found'));
     return;
   }
-  res.json({ success: true, data: map });
+  res.json(createResponse(true, map));
 });
 
 // Error handling
-app.use((err: CustomError, req: Request, res: Response) => {
+app.use((err: Error & { status?: number }, req: Request, res: Response) => {
   console.error(err);
-  res.status(err.status || 500).json({
-    success: false,
-    error: err.message || 'Internal server error',
-  });
+  res.status(err.status || 500).json(createResponse(false, undefined, err.message || 'Internal server error'));
 });
 
-const PORT = process.env.PORT || 8890;
+const PORT = process.env.PORT || 8891;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
