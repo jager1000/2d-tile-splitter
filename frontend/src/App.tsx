@@ -15,6 +15,63 @@ import {
   APP_CONFIG 
 } from '../../shared/constants';
 
+// Add custom styles
+const customStyles = `
+  @keyframes slide-up {
+    from {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  
+  @keyframes pulse-slow {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  
+  .animate-slide-up {
+    animation: slide-up 0.3s ease-out;
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse-slow 2s ease-in-out infinite;
+  }
+  
+  /* Custom scrollbar for tile grids */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #374151;
+    border-radius: 4px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #6b7280;
+    border-radius: 4px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+`;
+
+// Inject styles
+if (typeof document !== 'undefined') {
+  const styleSheet = document.createElement('style');
+  styleSheet.textContent = customStyles;
+  document.head.appendChild(styleSheet);
+}
+
 // UI Components
 const Button = ({ 
   variant = 'primary', 
@@ -76,66 +133,56 @@ const Tooltip = ({ content, children }: { content: string; children: React.React
 // Generic API wrapper
 const createAPI = (baseURL = '/api') => {
   const request = async (endpoint: string, options: RequestInit = {}): Promise<any> => {
-    console.log(`Making API request to: ${baseURL}${endpoint}`);
-    console.log('Request options:', options);
-    
     try {
       const response = await fetch(`${baseURL}${endpoint}`, {
         headers: { 'Content-Type': 'application/json', ...options.headers },
         ...options,
       });
       
-      console.log(`API response status: ${response.status}`);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Error response body:', errorText);
         throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
       }
       
       const result = await response.json();
-      console.log('API response:', result);
       return result;
     } catch (error) {
-      console.error('API request failed:', error);
       throw error;
     }
   };
 
   return {
     extractTiles: (formData: FormData) => {
-      console.log('Extracting tiles with FormData');
-      console.log('FormData entries:', Array.from(formData.entries()));
       return fetch(`${baseURL}/extract-tiles`, { 
         method: 'POST', 
         body: formData 
       }).then(response => {
-        console.log(`Extract tiles response status: ${response.status}`);
-        console.log('Extract tiles response headers:', Object.fromEntries(response.headers.entries()));
         if (!response.ok) {
           return response.text().then(text => {
-            console.error('Extract tiles error response:', text);
             throw new Error(`HTTP error! status: ${response.status}, body: ${text}`);
           });
         }
         return response.json();
       }).then(result => {
-        console.log('Extract tiles response:', result);
         return result;
       }).catch(error => {
-        console.error('Extract tiles request failed:', error);
         throw error;
       });
     },
     generateMap: (data: any) => {
-      console.log('Generating map with data:', data);
-      return request('/generate-map', { method: 'POST', body: JSON.stringify(data) });
+      console.log('API: Sending map generation request:', data);
+      return request('/generate-map', { method: 'POST', body: JSON.stringify(data) }).then(result => {
+        console.log('API: Map generation response:', result);
+        return result;
+      }).catch(error => {
+        console.error('API: Map generation error:', error);
+        throw error;
+      });
     },
   };
 };
 
-const api = createAPI();
+const api = createAPI('http://localhost:8891');
 
 // State management with useReducer
 interface AppState {
@@ -222,12 +269,30 @@ export default function App() {
   React.useEffect(() => {
     const testConnection = async () => {
       try {
-        const response = await fetch('/api/');
+        const response = await fetch('http://localhost:8891/');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
         const data = await response.json();
-        console.log('Backend connection test successful:', data);
+        console.log('Backend connected:', data);
+        
+        // Show a brief success message
+        setTimeout(() => {
+          dispatch({ 
+            type: 'SET_ERROR', 
+            payload: '✅ Backend connected successfully!' 
+          });
+          setTimeout(() => {
+            dispatch({ type: 'SET_ERROR', payload: null });
+          }, 2000);
+        }, 500);
+        
       } catch (err) {
-        console.error('Backend connection test failed:', err);
-        dispatch({ type: 'SET_ERROR', payload: 'Cannot connect to backend server' });
+        console.error('Backend connection failed:', err);
+        dispatch({ 
+          type: 'SET_ERROR', 
+          payload: `Cannot connect to backend server: ${err instanceof Error ? err.message : 'Unknown error'}` 
+        });
       }
     };
     
@@ -378,33 +443,49 @@ export default function App() {
   };
 
   const generateMap = async () => {
-    console.log('Generate map button clicked');
-    console.log('Current tileAtlas:', tileAtlas);
-    console.log('Current tileClassifications:', tileClassifications);
-    console.log('Current config:', config);
-
     if (!tileAtlas) {
       dispatch({ type: 'SET_ERROR', payload: 'Please upload and extract tiles first' });
       return;
+    }
+
+    console.log('Starting map generation...');
+    console.log('TileAtlas:', tileAtlas);
+    console.log('TileClassifications:', Object.fromEntries(tileClassifications));
+    console.log('Config:', config);
+
+    // Build tiles by type using current classifications
+    const tilesByType: Record<TileClassification, string[]> = {
+      floor: [],
+      wall: [],
+      decoration: [],
+    };
+
+    // Use current tile classifications or fall back to original
+    tileAtlas.tiles.forEach(tile => {
+      const classification = tileClassifications.get(tile.id) || tile.classification;
+      tilesByType[classification].push(tile.id);
+    });
+
+    console.log('Tiles by type:', tilesByType);
+
+    // Ensure we have at least floor tiles
+    if (tilesByType.floor.length === 0) {
+      dispatch({ type: 'SET_ERROR', payload: 'Please classify at least one tile as "Floor"' });
+      return;
+    }
+
+    // Use floor tiles as fallback for missing types
+    if (tilesByType.wall.length === 0) {
+      tilesByType.wall = [...tilesByType.floor];
+    }
+    if (tilesByType.decoration.length === 0) {
+      tilesByType.decoration = [...tilesByType.floor];
     }
 
     dispatch({ type: 'SET_ERROR', payload: null });
     dispatch({ type: 'SET_GENERATING', payload: true });
 
     try {
-      const tilesByType: Record<TileClassification, string[]> = {
-        floor: [],
-        wall: [],
-        decoration: [],
-      };
-
-      tileAtlas.tiles.forEach(tile => {
-        const classification = tileClassifications.get(tile.id) || tile.classification;
-        tilesByType[classification].push(tile.id);
-      });
-
-      console.log('Tiles by type:', tilesByType);
-
       const requestData = {
         atlasId: tileAtlas.id,
         width: config.mapSize,
@@ -414,116 +495,96 @@ export default function App() {
         tilesByType,
       };
 
-      console.log('Sending request data:', requestData);
+      console.log('Sending request:', requestData);
 
       const result = await api.generateMap(requestData);
-
-      console.log('API response received:', result);
+      console.log('Received result:', result);
 
       if (result.success && result.data) {
-        console.log('Map generation successful, rendering to canvas');
-        renderMapToCanvas(result.data);
+        console.log('Map data received, rendering...');
+        await renderMapToCanvas(result.data);
       } else {
         throw new Error(result.error || 'Failed to generate map');
       }
     } catch (err) {
       console.error('Map generation error:', err);
-      dispatch({ type: 'SET_ERROR', payload: err instanceof Error ? err.message : 'Failed to generate map' });
+      dispatch({ type: 'SET_ERROR', payload: `Map generation failed: ${err instanceof Error ? err.message : 'Unknown error'}` });
     } finally {
       dispatch({ type: 'SET_GENERATING', payload: false });
     }
   };
 
-  const renderMapToCanvas = (mapData: any) => {
-    console.log('renderMapToCanvas called with:', mapData);
-    
+  const renderMapToCanvas = async (mapData: any) => {
     const canvas = canvasRef.current;
     if (!canvas || !tileAtlas) {
-      console.log('Canvas or tileAtlas not available:', { canvas: !!canvas, tileAtlas: !!tileAtlas });
+      console.error('Canvas or tileAtlas missing');
       return;
     }
 
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      console.log('Could not get canvas context');
+      console.error('Could not get canvas context');
       return;
     }
 
-    console.log('Setting canvas dimensions:', mapData.width * mapData.tileSize, 'x', mapData.height * mapData.tileSize);
-    canvas.width = mapData.width * mapData.tileSize;
-    canvas.height = mapData.height * mapData.tileSize;
+    // Set canvas size
+    const cellSize = 32; // Fixed cell size for testing
+    canvas.width = mapData.width * cellSize;
+    canvas.height = mapData.height * cellSize;
 
-    ctx.fillStyle = '#0a0a0a';
+    console.log('Rendering map:', {
+      mapWidth: mapData.width,
+      mapHeight: mapData.height,
+      canvasSize: `${canvas.width}x${canvas.height}`,
+      cellsData: mapData.cells?.length
+    });
+
+    // Clear canvas
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Render the actual map
+    // Simple rendering - just draw colored squares for now
     if (mapData.cells && Array.isArray(mapData.cells)) {
-      console.log('Rendering map with cells:', mapData.cells.length);
-      
-      // Create a map of tile IDs to their image data
-      const tileMap = new Map();
-      tileAtlas.tiles.forEach(tile => {
-        tileMap.set(tile.id, tile.imageData);
-      });
-
-      console.log('Created tile map with', tileMap.size, 'tiles');
-
-      // Render each cell
       for (let y = 0; y < mapData.cells.length; y++) {
         for (let x = 0; x < mapData.cells[y].length; x++) {
           const cell = mapData.cells[y][x];
           
-          if (cell.tileId) {
-            const tileImageData = tileMap.get(cell.tileId);
-            if (tileImageData) {
-              const img = new Image();
-              img.onload = () => {
-                ctx.drawImage(
-                  img,
-                  x * mapData.tileSize,
-                  y * mapData.tileSize,
-                  mapData.tileSize,
-                  mapData.tileSize
-                );
-              };
-              img.src = tileImageData;
-            } else {
-              // Fallback: draw colored square
-              const tile = tileAtlas.tiles.find(t => t.id === cell.tileId);
-              if (tile) {
-                let color = '#333';
-                switch (tile.classification) {
-                  case 'floor': color = '#8b5a2b'; break;
-                  case 'wall': color = '#666'; break;
-                  case 'decoration': color = '#4ade80'; break;
-                }
-                ctx.fillStyle = color;
-                ctx.fillRect(
-                  x * mapData.tileSize,
-                  y * mapData.tileSize,
-                  mapData.tileSize,
-                  mapData.tileSize
-                );
-              }
+          let color = '#333333'; // default
+          if (cell && cell.layer) {
+            switch (cell.layer) {
+              case 'floor': color = '#8B4513'; break; // brown
+              case 'wall': color = '#666666'; break;  // gray
+              case 'decoration': color = '#228B22'; break; // green
             }
           }
+          
+          ctx.fillStyle = color;
+          ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+          
+          // Add border for visibility
+          ctx.strokeStyle = '#222';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x * cellSize, y * cellSize, cellSize, cellSize);
         }
       }
-    } else {
-      // Fallback display
-      console.log('No cells found in map data, showing fallback');
-      ctx.fillStyle = '#666';
-      ctx.font = '16px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('Map structure not recognized', canvas.width/2, canvas.height/2);
-      console.warn('Map data structure unexpected:', mapData);
-    }
-    
-    // Update the data URL after a short delay to allow images to load
-    setTimeout(() => {
-      console.log('Setting generated map data URL');
+      
+      console.log('Map rendered successfully');
       dispatch({ type: 'SET_GENERATED_MAP', payload: canvas.toDataURL() });
-    }, 500);
+      dispatch({ type: 'SET_ERROR', payload: '✅ Map generated successfully!' });
+      setTimeout(() => dispatch({ type: 'SET_ERROR', payload: null }), 2000);
+      
+    } else {
+      console.error('Invalid map data:', mapData);
+      // Draw error pattern
+      ctx.fillStyle = '#FF0000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '20px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Map Data Error', canvas.width/2, canvas.height/2);
+      
+      dispatch({ type: 'SET_ERROR', payload: 'Invalid map data structure' });
+    }
   };
 
   const exportMap = () => {
@@ -532,27 +593,122 @@ export default function App() {
       return;
     }
 
-    const link = document.createElement('a');
-    link.download = 'generated-map.png';
-    link.href = generatedMapData;
-    link.click();
+    try {
+      const link = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+      link.download = `map-${config.mapSize}x${config.mapSize}-${timestamp}.png`;
+      link.href = generatedMapData;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Show success message
+      dispatch({ type: 'SET_ERROR', payload: '✅ Map exported successfully!' });
+      setTimeout(() => {
+        dispatch({ type: 'SET_ERROR', payload: null });
+      }, 2000);
+    } catch (err) {
+      dispatch({ type: 'SET_ERROR', payload: 'Failed to export map' });
+    }
   };
+
+  // Test canvas functionality
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas && !generatedMapData) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // Initialize canvas with a simple test pattern
+        canvas.width = 200;
+        canvas.height = 200;
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw a simple grid pattern to show canvas is working
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 200; i += 20) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i, 200);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, i);
+          ctx.lineTo(200, i);
+          ctx.stroke();
+        }
+        
+        // Add text
+        ctx.fillStyle = '#666';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Ready for', 100, 90);
+        ctx.fillText('map generation', 100, 110);
+      }
+    }
+  }, [generatedMapData]);
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ctrl/Cmd + G for Generate Map
+      if ((event.ctrlKey || event.metaKey) && event.key === 'g' && !isGenerating && tileAtlas) {
+        event.preventDefault();
+        generateMap();
+      }
+      
+      // Ctrl/Cmd + E for Export
+      if ((event.ctrlKey || event.metaKey) && event.key === 'e' && generatedMapData) {
+        event.preventDefault();
+        exportMap();
+      }
+      
+      // Escape to clear errors
+      if (event.key === 'Escape' && error) {
+        dispatch({ type: 'SET_ERROR', payload: null });
+      }
+      
+      // Ctrl/Cmd + A to select all tiles (when tiles are available)
+      if ((event.ctrlKey || event.metaKey) && event.key === 'a' && tileAtlas) {
+        event.preventDefault();
+        const allTileIds = new Set(tileAtlas.tiles.map(tile => tile.id));
+        dispatch({ type: 'SET_SELECTED_TILES', payload: allTileIds });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isGenerating, tileAtlas, generatedMapData, error, generateMap, exportMap]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container mx-auto px-4 py-8">
         <header className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-2">Smart 2D Map Generator</h1>
-          <p className="text-gray-400 mb-4">AI-powered tile classification and intelligent map generation</p>
-          <div className="flex justify-center items-center gap-4 text-sm">
+          <div className="flex justify-center items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
+              <Wand2 className="w-6 h-6 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+              Smart 2D Map Generator
+            </h1>
+          </div>
+          <p className="text-gray-400 mb-6 text-lg">AI-powered tile classification and intelligent map generation</p>
+          
+          <div className="flex justify-center items-center gap-6 text-sm bg-gray-800 rounded-lg p-4 max-w-2xl mx-auto">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-green-400">Frontend Ready</span>
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-green-400 font-medium">Frontend Ready</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span className="text-blue-400">Backend: {window.location.protocol}//{window.location.hostname}:8891</span>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              <span className="text-blue-400 font-medium">Backend Connected</span>
             </div>
+            
+            {/* Keyboard shortcuts help */}
+            <Tooltip content="Ctrl+G: Generate Map, Ctrl+E: Export, Ctrl+A: Select All Tiles, ESC: Close Error">
+              <div className="flex items-center gap-1 text-gray-400 hover:text-gray-300 cursor-help">
+                <span className="text-xs">⌨️</span>
+                <span className="text-xs">Shortcuts</span>
+              </div>
+            </Tooltip>
           </div>
         </header>
 
@@ -720,54 +876,138 @@ export default function App() {
                 </p>
 
                 <div className="mb-4 space-y-2">
+                  <div className="text-xs text-gray-400 mb-3">
+                    Selected: {selectedTiles.size} tile{selectedTiles.size !== 1 ? 's' : ''}
+                    {selectedTiles.size > 0 && (
+                      <span className="ml-2 text-blue-400">
+                        (Use Ctrl+Click for multiple selection)
+                      </span>
+                    )}
+                  </div>
+                  
                   <Button 
                     onClick={() => updateTileClassification('floor')}
                     disabled={selectedTiles.size === 0}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white transition-all duration-200 transform hover:scale-105"
                   >
-                    Mark as Floor ({selectedTiles.size} selected)
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-3 h-3 bg-green-300 rounded"></div>
+                      Mark as Floor
+                      {selectedTiles.size > 0 && (
+                        <span className="bg-green-800 px-2 py-1 rounded text-xs">
+                          {selectedTiles.size}
+                        </span>
+                      )}
+                    </div>
                   </Button>
+                  
                   <Button 
                     onClick={() => updateTileClassification('wall')}
                     disabled={selectedTiles.size === 0}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white"
+                    className="w-full bg-red-600 hover:bg-red-700 text-white transition-all duration-200 transform hover:scale-105"
                   >
-                    Mark as Wall ({selectedTiles.size} selected)
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-3 h-3 bg-red-300 rounded"></div>
+                      Mark as Wall
+                      {selectedTiles.size > 0 && (
+                        <span className="bg-red-800 px-2 py-1 rounded text-xs">
+                          {selectedTiles.size}
+                        </span>
+                      )}
+                    </div>
                   </Button>
+                  
                   <Button 
                     onClick={() => updateTileClassification('decoration')}
                     disabled={selectedTiles.size === 0}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 transform hover:scale-105"
                   >
-                    Mark as Decoration ({selectedTiles.size} selected)
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-3 h-3 bg-blue-300 rounded"></div>
+                      Mark as Decoration
+                      {selectedTiles.size > 0 && (
+                        <span className="bg-blue-800 px-2 py-1 rounded text-xs">
+                          {selectedTiles.size}
+                        </span>
+                      )}
+                    </div>
                   </Button>
+                  
+                  {/* Quick Actions */}
+                  <div className="mt-4 pt-4 border-t border-gray-700">
+                    <div className="text-xs text-gray-400 mb-2">Quick Actions:</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        onClick={() => {
+                          const allTileIds = new Set(tileAtlas!.tiles.map(tile => tile.id));
+                          dispatch({ type: 'SET_SELECTED_TILES', payload: allTileIds });
+                        }}
+                        variant="secondary"
+                        className="text-xs py-1"
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        onClick={() => dispatch({ type: 'SET_SELECTED_TILES', payload: new Set() })}
+                        variant="secondary"
+                        className="text-xs py-1"
+                      >
+                        Clear Selection
+                      </Button>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Tiles Grid */}
-                <div className="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto bg-gray-700 p-2 rounded">
-                  {tileAtlas.tiles.map((tile) => (
-                    <div
-                      key={tile.id}
-                      className={`relative border-2 rounded cursor-pointer transition-all hover:scale-110 ${
-                        selectedTiles.has(tile.id)
-                          ? selectedTiles.size > 1
-                            ? 'border-green-400 shadow-lg shadow-green-400/50'
-                            : 'border-blue-400 shadow-lg shadow-blue-400/50'
-                          : 'border-transparent hover:border-gray-400'
-                      }`}
-                      onClick={(e) => handleTileClick(tile.id, e)}
-                    >
-                      <img 
-                        src={tile.imageData} 
-                        alt={`Tile ${tile.id}`}
-                        className="w-full h-full object-cover rounded"
-                        style={{ imageRendering: 'pixelated' }}
-                      />
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/80 text-xs text-center py-0.5 rounded-b">
-                        {tileClassifications.get(tile.id) || tile.classification}
+                <div className="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto bg-gray-700 p-3 rounded-lg border border-gray-600 custom-scrollbar">
+                  {tileAtlas.tiles.map((tile) => {
+                    const classification = tileClassifications.get(tile.id) || tile.classification;
+                    const isSelected = selectedTiles.has(tile.id);
+                    
+                    return (
+                      <div
+                        key={tile.id}
+                        className={`relative border-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-110 hover:z-10 ${
+                          isSelected
+                            ? selectedTiles.size > 1
+                              ? 'border-green-400 shadow-lg shadow-green-400/50 ring-2 ring-green-400/30'
+                              : 'border-blue-400 shadow-lg shadow-blue-400/50 ring-2 ring-blue-400/30'
+                            : 'border-gray-500 hover:border-gray-300'
+                        }`}
+                        onClick={(e) => handleTileClick(tile.id, e)}
+                      >
+                        <img 
+                          src={tile.imageData} 
+                          alt={`Tile ${tile.id}`}
+                          className="w-full h-full object-cover rounded-lg"
+                          style={{ imageRendering: 'pixelated' }}
+                        />
+                        
+                        {/* Classification Badge */}
+                        <div className={`absolute bottom-0 left-0 right-0 text-xs text-center py-1 rounded-b-lg font-medium ${
+                          classification === 'floor' 
+                            ? 'bg-green-600/90 text-green-100' 
+                            : classification === 'wall'
+                            ? 'bg-red-600/90 text-red-100'
+                            : 'bg-blue-600/90 text-blue-100'
+                        }`}>
+                          {classification}
+                        </div>
+                        
+                        {/* Selection Indicator */}
+                        {isSelected && (
+                          <div className="absolute top-1 right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center">
+                            <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                          </div>
+                        )}
+                        
+                        {/* Tile ID on hover */}
+                        <div className="absolute top-1 left-1 bg-black/80 text-white text-xs px-1 rounded opacity-0 hover:opacity-100 transition-opacity">
+                          {tile.id}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -825,63 +1065,88 @@ export default function App() {
                 <Button
                   onClick={generateMap}
                   disabled={!tileAtlas || isGenerating}
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-3"
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-3 transition-all duration-300 transform hover:scale-105 disabled:transform-none disabled:hover:scale-100"
                 >
                   {isGenerating ? (
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      Generating...
+                      Generating Map...
                     </div>
                   ) : (
                     <div className="flex items-center justify-center gap-2">
-                      <Wand2 className="w-4 h-4" />
+                      <Wand2 className="w-5 h-5" />
                       Generate Map
                     </div>
                   )}
+                </Button>
+
+                {/* Test Canvas Button */}
+                <Button
+                  onClick={() => {
+                    // Test canvas with dummy data
+                    const dummyMapData = {
+                      width: 10,
+                      height: 10,
+                      cells: Array(10).fill(null).map((_, y) => 
+                        Array(10).fill(null).map((_, x) => ({
+                          x, y,
+                          tileId: 'test',
+                          layer: (x === 0 || x === 9 || y === 0 || y === 9) ? 'wall' : 
+                                (Math.random() > 0.8) ? 'decoration' : 'floor'
+                        }))
+                      )
+                    };
+                    renderMapToCanvas(dummyMapData);
+                  }}
+                  variant="secondary"
+                  className="w-full bg-yellow-600 hover:bg-yellow-700"
+                >
+                  🧪 Test Canvas Rendering
                 </Button>
 
                 <Button
                   onClick={exportMap}
                   disabled={!generatedMapData}
                   variant="secondary"
-                  className="w-full"
+                  className="w-full bg-gray-700 hover:bg-gray-600 transition-all duration-200"
                 >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export as PNG
+                  <div className="flex items-center justify-center gap-2">
+                    <Download className="w-4 h-4" />
+                    Export as PNG
+                  </div>
                 </Button>
 
-                {/* Debug Button for Testing */}
-                <Button
-                  onClick={() => {
-                    console.log('=== DEBUG INFO ===');
-                    console.log('tileAtlas:', tileAtlas);
-                    console.log('selectedTiles:', selectedTiles);
-                    console.log('tileClassifications:', tileClassifications);
-                    console.log('config:', config);
-                    console.log('isGenerating:', isGenerating);
-                    console.log('generatedMapData:', !!generatedMapData);
-                    console.log('error:', error);
-                    
-                    if (tileAtlas) {
-                      const tilesByType: Record<TileClassification, string[]> = {
-                        floor: [],
-                        wall: [],
-                        decoration: [],
-                      };
-
-                      tileAtlas.tiles.forEach(tile => {
-                        const classification = tileClassifications.get(tile.id) || tile.classification;
-                        tilesByType[classification].push(tile.id);
-                      });
-
-                      console.log('tilesByType would be:', tilesByType);
-                    }
-                  }}
-                  variant="secondary"
-                  className="w-full text-xs bg-gray-700 hover:bg-gray-600"
-                >
-                  🐛 Debug Info
-                </Button>
+                {/* Generation Statistics */}
+                {tileAtlas && (
+                  <div className="mt-4 p-3 bg-gray-700 rounded-lg text-sm">
+                    <div className="text-gray-300 font-medium mb-2">Tile Statistics:</div>
+                    <div className="grid grid-cols-3 gap-2 text-xs mb-3">
+                      {(['floor', 'wall', 'decoration'] as const).map(type => {
+                        const count = tileAtlas.tiles.filter(tile => 
+                          (tileClassifications.get(tile.id) || tile.classification) === type
+                        ).length;
+                        const color = type === 'floor' ? 'text-green-400' : type === 'wall' ? 'text-red-400' : 'text-blue-400';
+                        
+                        return (
+                          <div key={type} className="text-center">
+                            <div className={`font-medium ${color}`}>{count}</div>
+                            <div className="text-gray-400 capitalize">{type}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="pt-2 border-t border-gray-600 text-xs text-gray-400">
+                      <div className="flex justify-between">
+                        <span>Total Tiles:</span>
+                        <span className="text-white font-medium">{tileAtlas.tiles.length}</span>
+                      </div>
+                      <div className="flex justify-between mt-1">
+                        <span>Map Cells:</span>
+                        <span className="text-white font-medium">{config.mapSize * config.mapSize}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -889,31 +1154,78 @@ export default function App() {
           {/* Main Canvas Area */}
           <div className="lg:col-span-2">
             <div className="bg-gray-800 rounded-lg p-6 h-full">
-              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <FileImage className="w-5 h-5" />
-                {!tileAtlas ? 'Upload Preview' : !generatedMapData ? 'Tileset Preview' : 'Generated Map'}
-                {tileAtlas && !generatedMapData && (
-                  <span className="text-sm bg-blue-600 text-white px-2 py-1 rounded text-xs ml-auto">
-                    {tileAtlas.tiles.length} tiles
-                  </span>
-                )}
-                {generatedMapData && (
-                  <span className="text-sm bg-green-600 text-white px-2 py-1 rounded text-xs ml-auto">
-                    Ready
-                  </span>
-                )}
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold flex items-center gap-2">
+                  <FileImage className="w-5 h-5" />
+                  {!tileAtlas ? 'Upload Preview' : !generatedMapData ? 'Tileset Preview' : 'Generated Map'}
+                </h3>
+                
+                <div className="flex items-center gap-2">
+                  {tileAtlas && !generatedMapData && (
+                    <span className="text-sm bg-blue-600 text-white px-3 py-1 rounded-full">
+                      {tileAtlas.tiles.length} tiles
+                    </span>
+                  )}
+                  {generatedMapData && (
+                    <span className="text-sm bg-green-600 text-white px-3 py-1 rounded-full">
+                      Map Ready
+                    </span>
+                  )}
+                </div>
+              </div>
               
-              <div className="flex justify-center items-center bg-gray-700 rounded-lg p-4 min-h-96 relative">
+              <div className="flex justify-center items-center bg-gray-700 rounded-lg p-4 min-h-96 relative overflow-auto">
                 {!tileAtlas ? (
-                  <div className="text-center text-gray-400">
-                    <FileImage className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-lg font-medium mb-2">No tileset uploaded yet</p>
-                    <p className="text-sm">Upload a tileset to see the extracted tiles here</p>
+                  <div className="text-center text-gray-400 py-16">
+                    <div className="relative">
+                      <FileImage className="w-24 h-24 mx-auto mb-6 opacity-30" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-full blur-xl"></div>
+                    </div>
+                    <h4 className="text-xl font-medium mb-3 text-gray-300">No tileset uploaded yet</h4>
+                    <p className="text-sm text-gray-400 max-w-md mx-auto mb-6">
+                      Upload a tileset image to see the extracted tiles here. 
+                      Supports PNG, JPG, WebP, and GIF formats.
+                    </p>
+                    
+                    {/* Map Size Preview Grid */}
+                    <div className="mt-8 p-4 bg-gray-800 rounded-lg border border-gray-600 max-w-md mx-auto">
+                      <div className="text-center mb-4">
+                        <h5 className="text-md font-medium text-gray-300 mb-2">Target Map Size</h5>
+                        <p className="text-sm text-gray-400">
+                          {config.mapSize}x{config.mapSize} grid ({config.mapSize * config.mapSize} total cells)
+                        </p>
+                      </div>
+                      
+                      {/* Grid visualization */}
+                      <div className="flex justify-center">
+                        <div 
+                          className="grid gap-px bg-gray-600 p-1 rounded"
+                          style={{
+                            gridTemplateColumns: `repeat(${Math.min(config.mapSize, 16)}, 1fr)`,
+                            width: '200px',
+                            height: '200px'
+                          }}
+                        >
+                          {Array.from({ length: Math.min(config.mapSize * config.mapSize, 256) }, (_, i) => (
+                            <div
+                              key={i}
+                              className="bg-gray-700"
+                              style={{ minWidth: '1px', minHeight: '1px' }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {config.mapSize > 16 && (
+                        <p className="text-xs text-gray-500 text-center mt-3">
+                          Preview limited to 16x16 for display • Actual map will be {config.mapSize}x{config.mapSize}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ) : !generatedMapData ? (
                   <div className="w-full">
-                    <div className="text-center mb-4">
+                    <div className="text-center mb-6">
                       <h4 className="text-lg font-medium text-gray-300 mb-2">Extracted Tiles Preview</h4>
                       <p className="text-sm text-gray-400">
                         {tileAtlas.tiles.length} tiles extracted • Ready for classification and map generation
@@ -921,59 +1233,169 @@ export default function App() {
                     </div>
                     
                     {/* Tileset Preview Grid */}
-                    <div className="bg-gray-800 rounded-lg p-4 max-h-96 overflow-y-auto">
+                    <div className="bg-gray-800 rounded-lg p-4 max-h-96 overflow-y-auto border border-gray-600 custom-scrollbar">
                       <div className="grid grid-cols-8 gap-2">
-                        {tileAtlas.tiles.map((tile, index) => (
-                          <div
-                            key={tile.id}
-                            className="relative border border-gray-600 rounded hover:border-gray-400 transition-colors group"
-                          >
-                            <img 
-                              src={tile.imageData} 
-                              alt={`Tile ${index + 1}`}
-                              className="w-full h-full object-cover rounded"
-                              style={{ imageRendering: 'pixelated' }}
-                            />
-                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center">
-                              <span className="text-white text-xs font-medium">
-                                {tileClassifications.get(tile.id) || tile.classification}
-                              </span>
+                        {tileAtlas.tiles.map((tile, index) => {
+                          const classification = tileClassifications.get(tile.id) || tile.classification;
+                          
+                          return (
+                            <div
+                              key={tile.id}
+                              className="relative border border-gray-600 rounded-lg hover:border-gray-400 transition-all duration-200 group overflow-hidden"
+                            >
+                              <img 
+                                src={tile.imageData} 
+                                alt={`Tile ${index + 1}`}
+                                className="w-full h-full object-cover rounded-lg"
+                                style={{ imageRendering: 'pixelated' }}
+                              />
+                              
+                              {/* Hover overlay with classification */}
+                              <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                                <div className="text-center">
+                                  <div className={`text-xs font-medium mb-1 ${
+                                    classification === 'floor' ? 'text-green-400' :
+                                    classification === 'wall' ? 'text-red-400' : 'text-blue-400'
+                                  }`}>
+                                    {classification}
+                                  </div>
+                                  <div className="text-xs text-gray-300">{tile.id}</div>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                     
-                    <div className="text-center mt-4">
-                      <p className="text-sm text-gray-400">
-                        Classify tiles on the left, then generate your map!
-                      </p>
+                    {/* Map Size Grid Preview */}
+                    <div className="mt-6 p-4 bg-gray-900 rounded-lg border border-gray-600">
+                      <div className="text-center mb-4">
+                        <h5 className="text-md font-medium text-gray-300 mb-2">Map Preview Grid</h5>
+                        <p className="text-sm text-gray-400">
+                          {config.mapSize}x{config.mapSize} grid ({config.mapSize * config.mapSize} total cells)
+                        </p>
+                      </div>
+                      
+                      {/* Grid visualization */}
+                      <div className="flex justify-center mb-4">
+                        <div 
+                          className="grid gap-px bg-gray-600 p-1 rounded"
+                          style={{
+                            gridTemplateColumns: `repeat(${Math.min(config.mapSize, 20)}, 1fr)`,
+                            maxWidth: '300px',
+                            aspectRatio: '1'
+                          }}
+                        >
+                          {Array.from({ length: Math.min(config.mapSize * config.mapSize, 400) }, (_, i) => (
+                            <div
+                              key={i}
+                              className="bg-gray-700 aspect-square"
+                              style={{ minWidth: '2px', minHeight: '2px' }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {config.mapSize > 20 && (
+                        <p className="text-xs text-gray-500 text-center mb-3">
+                          Grid preview limited to 20x20 for display • Actual map will be {config.mapSize}x{config.mapSize}
+                        </p>
+                      )}
+                      
+                      <div className="text-center">
+                        <p className="text-sm text-gray-400 mb-2">
+                          💡 <strong>Tip:</strong> Classify tiles on the left, then generate your map!
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Use Ctrl+Click to select multiple tiles for batch classification
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ) : (
-                  <canvas
-                    ref={canvasRef}
-                    className="border-2 border-gray-600 rounded max-w-full max-h-full shadow-lg"
-                    style={{ imageRendering: 'pixelated' }}
-                  />
+                  <div className="w-full h-full flex flex-col items-center justify-center">
+                    <div className="relative mb-4">
+                      <canvas
+                        ref={canvasRef}
+                        className="border-2 border-gray-600 rounded-lg shadow-2xl max-w-full max-h-[70vh] object-contain bg-gray-900"
+                        style={{ 
+                          imageRendering: 'pixelated',
+                          minWidth: '200px',
+                          minHeight: '200px',
+                          display: 'block'
+                        }}
+                      />
+                      
+                      {/* Debug overlay to show canvas state */}
+                      {canvasRef.current && (
+                        <div className="absolute top-0 left-0 bg-black/70 text-green-400 text-xs p-1 rounded">
+                          Canvas: {canvasRef.current.width}x{canvasRef.current.height}
+                        </div>
+                      )}
+                      
+                      {/* Canvas controls overlay */}
+                      <div className="absolute top-4 right-4 flex gap-2">
+                        <button
+                          onClick={() => {
+                            if (canvasRef.current) {
+                              const canvas = canvasRef.current;
+                              const currentStyle = canvas.style.imageRendering;
+                              canvas.style.imageRendering = currentStyle === 'auto' ? 'pixelated' : 'auto';
+                            }
+                          }}
+                          className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-lg transition-all duration-200"
+                          title="Toggle pixelated rendering"
+                        >
+                          🔍
+                        </button>
+                        <button
+                          onClick={exportMap}
+                          className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-lg transition-all duration-200"
+                          title="Download map"
+                        >
+                          📥
+                        </button>
+                      </div>
+                      
+                      {/* Map info overlay */}
+                      <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-2 rounded-lg text-sm">
+                        Map: {config.mapSize}x{config.mapSize} • Tile Size: {config.tileSize}px
+                        {canvasRef.current && (
+                          <div className="text-xs text-gray-300 mt-1">
+                            Canvas: {canvasRef.current.width}x{canvasRef.current.height}px
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Canvas status info */}
+                    <div className="text-center text-gray-400 text-sm">
+                      <p className="mb-2">✅ Map canvas ready for rendering</p>
+                      <p className="text-xs text-gray-500">Generated maps will appear above</p>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Error Display */}
+        {/* Enhanced Error Display */}
         {error && (
-          <div className="fixed bottom-4 right-4 bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg max-w-md z-50 animate-slide-up">
+          <div className="fixed bottom-4 right-4 bg-red-600 text-white px-6 py-4 rounded-lg shadow-2xl max-w-md z-50 animate-slide-up border border-red-500">
             <div className="flex items-start gap-3">
-              <div className="text-red-200">⚠️</div>
-              <div className="flex-1">
-                <div className="font-medium text-sm">Error</div>
-                <div className="text-red-100 text-sm">{error}</div>
+              <div className="text-red-200 flex-shrink-0 mt-0.5">
+                ⚠️
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm mb-1">Error</div>
+                <div className="text-red-100 text-sm break-words">{error}</div>
               </div>
               <button 
                 onClick={() => dispatch({ type: 'SET_ERROR', payload: null })}
-                className="text-red-200 hover:text-white text-lg leading-none"
+                className="text-red-200 hover:text-white text-xl leading-none flex-shrink-0 transition-colors duration-200"
+                title="Dismiss error"
               >
                 ×
               </button>
@@ -981,16 +1403,41 @@ export default function App() {
           </div>
         )}
 
-        {/* Loading States */}
+        {/* Enhanced Loading States */}
         {(isExtracting || isGenerating) && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
-            <div className="bg-gray-800 rounded-lg p-8 text-center border border-gray-600 shadow-2xl">
-              <div className="w-12 h-12 border-4 border-blue-400/30 border-t-blue-400 rounded-full animate-spin mx-auto mb-4"></div>
-              <div className="text-lg font-medium mb-2">
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
+            <div className="bg-gray-800 rounded-xl p-8 text-center border border-gray-600 shadow-2xl max-w-md mx-4">
+              {/* Animated Icon */}
+              <div className="relative mb-6">
+                <div className="w-16 h-16 border-4 border-blue-400/30 border-t-blue-400 rounded-full animate-spin mx-auto"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  {isExtracting ? (
+                    <FileImage className="w-6 h-6 text-blue-400" />
+                  ) : (
+                    <Wand2 className="w-6 h-6 text-purple-400" />
+                  )}
+                </div>
+              </div>
+              
+              {/* Loading Text */}
+              <div className="text-lg font-medium mb-3 text-white">
                 {isExtracting ? 'Extracting tiles from image...' : 'Generating map...'}
               </div>
-              <div className="text-sm text-gray-400">
-                {isExtracting ? 'Analyzing tileset and classifying tiles' : 'Creating procedural map layout'}
+              
+              <div className="text-sm text-gray-400 mb-4">
+                {isExtracting 
+                  ? 'Analyzing tileset structure and classifying tiles using AI' 
+                  : 'Creating procedural map layout with intelligent tile placement'
+                }
+              </div>
+              
+              {/* Progress Animation */}
+              <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full animate-pulse"></div>
+              </div>
+              
+              <div className="text-xs text-gray-500 mt-3">
+                This may take a few moments...
               </div>
             </div>
           </div>

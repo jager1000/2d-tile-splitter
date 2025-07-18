@@ -1,13 +1,49 @@
 # 2D Map Generator
 
-AI-powered tile classification and intelligent map generation tool.
+An AI-powered 2D map generator with intelligent tile classification and procedural map generation.
+
+## Features
+
+- 🖼️ **Smart Tile Extraction**: Upload any tileset image and automatically extract individual tiles
+- 🤖 **AI Classification**: Intelligent tile classification into floors, walls, and decorations
+- 🗺️ **Procedural Generation**: Generate diverse maps with intelligent tile placement
+- 🎨 **Real-time Preview**: See generated maps instantly in the browser
+- 📱 **Responsive UI**: Modern, clean interface that works on all devices
+- ⚡ **Fast & Reliable**: Built with modern tech stack for optimal performance
 
 ## 🚀 Quick Start
 
-### Option 1: Single Command (Recommended)
-```bash
-npm run dev
-```
+### Prerequisites
+- Node.js 18+ 
+- NPM or Yarn
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/jager1000/2d-tile-splitter.git
+   cd map-generator-2d
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm run install:all
+   ```
+
+3. **Start the application**
+   ```bash
+   npm start
+   ```
+
+The application will automatically:
+- Find available ports for both frontend and backend
+- Start the backend API server
+- Start the frontend development server  
+- Open your browser to the application
+
+**Alternative start methods:**
+- Windows PowerShell: `.\start.ps1`
+- Direct Node.js: `node start.js`
 This will start both backend (port 8890) and frontend (port 3004) simultaneously.
 
 ### Option 2: Individual Commands

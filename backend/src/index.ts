@@ -245,7 +245,29 @@ class MapGenerationService {
   static async generateMap(params: MapGenerationParams): Promise<GeneratedMap> {
     const { width, height, tileSize, environmentType, atlasId, tilesByType } = params;
 
+    // Validate parameters
+    if (width <= 0 || height <= 0) {
+      throw new Error('Invalid map dimensions');
+    }
+    
+    if (!tilesByType || Object.keys(tilesByType).length === 0) {
+      throw new Error('No tiles provided for map generation');
+    }
+
+    // Ensure we have at least some tiles for generation
+    const allTiles = Object.values(tilesByType).flat();
+    if (allTiles.length === 0) {
+      throw new Error('No tiles available for map generation');
+    }
+
+    console.log(`Generating ${width}x${height} map with environment: ${environmentType}`);
+    console.log('Tiles available:', Object.entries(tilesByType).map(([type, tiles]) => `${type}: ${tiles.length}`).join(', '));
+
     const cells = this.generateCells(width, height, tilesByType, environmentType);
+
+    if (!cells || cells.length !== height || !cells[0] || cells[0].length !== width) {
+      throw new Error('Failed to generate valid map cells');
+    }
 
     const map: GeneratedMap = {
       id: uuidv4(),
@@ -337,7 +359,7 @@ class MapGenerationService {
       // Create room floor
       for (let y = roomY; y < roomY + roomHeight; y++) {
         for (let x = roomX; x < roomX + roomWidth; x++) {
-          if (x < width && y < height) {
+          if (x >= 0 && x < width && y >= 0 && y < height) {
             cells[y][x] = { x, y, tileId: this.getRandomTile(tilesByType.floor), layer: 'floor' };
           }
         }
@@ -360,7 +382,7 @@ class MapGenerationService {
       const minX = Math.min(prevCenterX, currentCenterX);
       const maxX = Math.max(prevCenterX, currentCenterX);
       for (let x = minX; x <= maxX; x++) {
-        if (x < width && prevCenterY < height) {
+        if (x >= 0 && x < width && prevCenterY >= 0 && prevCenterY < height) {
           cells[prevCenterY][x] = { x, y: prevCenterY, tileId: this.getRandomTile(tilesByType.floor), layer: 'floor' };
         }
       }
@@ -369,7 +391,7 @@ class MapGenerationService {
       const minY = Math.min(prevCenterY, currentCenterY);
       const maxY = Math.max(prevCenterY, currentCenterY);
       for (let y = minY; y <= maxY; y++) {
-        if (currentCenterX < width && y < height) {
+        if (currentCenterX >= 0 && currentCenterX < width && y >= 0 && y < height) {
           cells[y][currentCenterX] = { x: currentCenterX, y, tileId: this.getRandomTile(tilesByType.floor), layer: 'floor' };
         }
       }
@@ -380,7 +402,7 @@ class MapGenerationService {
       if (Math.random() < 0.7) {
         const decorX = room.x + Math.floor(Math.random() * (room.width - 2)) + 1;
         const decorY = room.y + Math.floor(Math.random() * (room.height - 2)) + 1;
-        if (decorX < width && decorY < height && cells[decorY][decorX].layer === 'floor') {
+        if (decorX >= 0 && decorX < width && decorY >= 0 && decorY < height && cells[decorY] && cells[decorY][decorX] && cells[decorY][decorX].layer === 'floor') {
           cells[decorY][decorX] = { x: decorX, y: decorY, tileId: this.getRandomTile(tilesByType.decoration), layer: 'decoration' };
         }
       }
@@ -491,7 +513,10 @@ class MapGenerationService {
   }
 
   private static getRandomTile(tiles: string[]): string | null {
-    if (!tiles || tiles.length === 0) return null;
+    if (!tiles || tiles.length === 0) {
+      console.warn('getRandomTile called with empty tiles array');
+      return null;
+    }
     return tiles[Math.floor(Math.random() * tiles.length)];
   }
 }
@@ -561,9 +586,46 @@ app.use((err: Error & { status?: number }, req: Request, res: Response) => {
   res.status(err.status || 500).json(createResponse(false, undefined, err.message || 'Internal server error'));
 });
 
-const PORT = process.env.PORT || 8891;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Function to find available port
+const findAvailablePort = (startPort: number): Promise<number> => {
+  const net = require('net');
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.listen(startPort, () => {
+      const port = server.address()?.port || startPort;
+      server.close(() => resolve(port));
+    });
+    server.on('error', () => {
+      resolve(findAvailablePort(startPort + 1));
+    });
+  });
+};
+
+// Start server with dynamic port
+const startServer = async () => {
+  const PORT = process.env.PORT ? parseInt(process.env.PORT) : await findAvailablePort(8890);
+  
+  const server = app.listen(PORT, () => {
+    console.log(`🚀 Backend server running on port ${PORT}`);
+    console.log(`📊 API available at http://localhost:${PORT}`);
+  });
+
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    server.close(() => {
+      console.log('Process terminated');
+    });
+  });
+
+  process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down gracefully');
+    server.close(() => {
+      console.log('Process terminated');
+    });
+  });
+};
+
+startServer().catch(console.error);
 
 export default app;

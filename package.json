@@ -18,6 +18,7 @@
     "emoji-regex": "^8.0.0",
     "escalade": "^3.2.0",
     "foreground-child": "^3.3.1",
+    "form-data": "^4.0.4",
     "get-caller-file": "^2.0.5",
     "has-flag": "^4.0.0",
     "is-fullwidth-code-point": "^3.0.0",
@@ -26,6 +27,7 @@
     "lodash": "^4.17.21",
     "lru-cache": "^10.4.3",
     "minipass": "^7.1.2",
+    "node-fetch": "^3.3.2",
     "package-json-from-dist": "^1.0.1",
     "path-key": "^3.1.1",
     "path-scurry": "^1.11.1",
@@ -51,17 +53,14 @@
     "yargs": "^17.7.2",
     "yargs-parser": "^21.1.1"
   },
-  "devDependencies": {},
   "scripts": {
-    "dev": "concurrently --names \"BACKEND,FRONTEND\" --prefix-colors \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && npm run dev",
-    "dev:frontend": "cd frontend && npm run dev",
+    "start": "node start.js",
+    "dev": "node start.js",
     "build": "npm run build:backend && npm run build:frontend",
     "build:backend": "cd backend && npm run build",
     "build:frontend": "cd frontend && npm run build",
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "clean": "rimraf backend/dist frontend/dist backend/node_modules frontend/node_modules node_modules",
-    "start": "npm run dev",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
