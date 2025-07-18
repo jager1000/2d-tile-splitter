@@ -245,7 +245,7 @@ class MapGenerationService {
   static async generateMap(params: MapGenerationParams): Promise<GeneratedMap> {
     const { width, height, tileSize, environmentType, atlasId, tilesByType } = params;
 
-    const cells = this.generateCells(width, height, tilesByType);
+    const cells = this.generateCells(width, height, tilesByType, environmentType);
 
     const map: GeneratedMap = {
       id: uuidv4(),
@@ -262,11 +262,29 @@ class MapGenerationService {
     return map;
   }
 
-  private static generateCells(width: number, height: number, tilesByType: Record<TileClassification, string[]>) {
+  private static generateCells(width: number, height: number, tilesByType: Record<TileClassification, string[]>, environmentType: EnvironmentType) {
     const cells = [];
     
+    // Generate layout based on environment type
+    switch (environmentType) {
+      case 'dungeon':
+        return this.generateDungeonLayout(width, height, tilesByType);
+      case 'nature':
+        return this.generateNatureLayout(width, height, tilesByType);
+      case 'city':
+        return this.generateCityLayout(width, height, tilesByType);
+      case 'abstract':
+        return this.generateAbstractLayout(width, height, tilesByType);
+      default:
+        return this.generateBasicLayout(width, height, tilesByType);
+    }
+  }
+
+  private static generateBasicLayout(width: number, height: number, tilesByType: Record<TileClassification, string[]>): MapCell[][] {
+    const cells: MapCell[][] = [];
+    
     for (let y = 0; y < height; y++) {
-      const row = [];
+      const row: MapCell[] = [];
       for (let x = 0; x < width; x++) {
         let tileId = null;
         let layer: 'floor' | 'wall' | 'decoration' = 'floor';
@@ -274,16 +292,15 @@ class MapGenerationService {
         // Simple map generation logic
         if (x === 0 || x === width - 1 || y === 0 || y === height - 1) {
           // Border walls
-          tileId = tilesByType.wall?.[0] || null;
+          tileId = this.getRandomTile(tilesByType.wall);
           layer = 'wall';
         } else if (Math.random() < 0.1) {
           // Random decorations
-          tileId = tilesByType.decoration?.[0] || null;
+          tileId = this.getRandomTile(tilesByType.decoration);
           layer = 'decoration';
         } else {
           // Floor tiles
-          const floorTiles = tilesByType.floor || [];
-          tileId = floorTiles[Math.floor(Math.random() * floorTiles.length)] || null;
+          tileId = this.getRandomTile(tilesByType.floor);
           layer = 'floor';
         }
 
@@ -293,6 +310,189 @@ class MapGenerationService {
     }
 
     return cells;
+  }
+
+  private static generateDungeonLayout(width: number, height: number, tilesByType: Record<TileClassification, string[]>): MapCell[][] {
+    const cells: MapCell[][] = [];
+    
+    // Initialize with walls
+    for (let y = 0; y < height; y++) {
+      const row: MapCell[] = [];
+      for (let x = 0; x < width; x++) {
+        row.push({ x, y, tileId: this.getRandomTile(tilesByType.wall), layer: 'wall' });
+      }
+      cells.push(row);
+    }
+
+    // Create rooms
+    const roomCount = Math.floor((width * height) / 100) + 2;
+    const rooms: { x: number, y: number, width: number, height: number }[] = [];
+
+    for (let i = 0; i < roomCount; i++) {
+      const roomWidth = Math.floor(Math.random() * 6) + 4;
+      const roomHeight = Math.floor(Math.random() * 6) + 4;
+      const roomX = Math.floor(Math.random() * (width - roomWidth - 2)) + 1;
+      const roomY = Math.floor(Math.random() * (height - roomHeight - 2)) + 1;
+
+      // Create room floor
+      for (let y = roomY; y < roomY + roomHeight; y++) {
+        for (let x = roomX; x < roomX + roomWidth; x++) {
+          if (x < width && y < height) {
+            cells[y][x] = { x, y, tileId: this.getRandomTile(tilesByType.floor), layer: 'floor' };
+          }
+        }
+      }
+
+      rooms.push({ x: roomX, y: roomY, width: roomWidth, height: roomHeight });
+    }
+
+    // Connect rooms with corridors
+    for (let i = 1; i < rooms.length; i++) {
+      const prevRoom = rooms[i - 1];
+      const currentRoom = rooms[i];
+      
+      const prevCenterX = Math.floor(prevRoom.x + prevRoom.width / 2);
+      const prevCenterY = Math.floor(prevRoom.y + prevRoom.height / 2);
+      const currentCenterX = Math.floor(currentRoom.x + currentRoom.width / 2);
+      const currentCenterY = Math.floor(currentRoom.y + currentRoom.height / 2);
+
+      // Horizontal corridor
+      const minX = Math.min(prevCenterX, currentCenterX);
+      const maxX = Math.max(prevCenterX, currentCenterX);
+      for (let x = minX; x <= maxX; x++) {
+        if (x < width && prevCenterY < height) {
+          cells[prevCenterY][x] = { x, y: prevCenterY, tileId: this.getRandomTile(tilesByType.floor), layer: 'floor' };
+        }
+      }
+
+      // Vertical corridor
+      const minY = Math.min(prevCenterY, currentCenterY);
+      const maxY = Math.max(prevCenterY, currentCenterY);
+      for (let y = minY; y <= maxY; y++) {
+        if (currentCenterX < width && y < height) {
+          cells[y][currentCenterX] = { x: currentCenterX, y, tileId: this.getRandomTile(tilesByType.floor), layer: 'floor' };
+        }
+      }
+    }
+
+    // Add decorations in rooms
+    rooms.forEach(room => {
+      if (Math.random() < 0.7) {
+        const decorX = room.x + Math.floor(Math.random() * (room.width - 2)) + 1;
+        const decorY = room.y + Math.floor(Math.random() * (room.height - 2)) + 1;
+        if (decorX < width && decorY < height && cells[decorY][decorX].layer === 'floor') {
+          cells[decorY][decorX] = { x: decorX, y: decorY, tileId: this.getRandomTile(tilesByType.decoration), layer: 'decoration' };
+        }
+      }
+    });
+
+    return cells;
+  }
+
+  private static generateNatureLayout(width: number, height: number, tilesByType: Record<TileClassification, string[]>): MapCell[][] {
+    const cells: MapCell[][] = [];
+    
+    for (let y = 0; y < height; y++) {
+      const row: MapCell[] = [];
+      for (let x = 0; x < width; x++) {
+        let tileId = null;
+        let layer: 'floor' | 'wall' | 'decoration' = 'floor';
+
+        // Create organic patterns
+        const noise = Math.sin(x * 0.1) * Math.cos(y * 0.1) + Math.sin(x * 0.05) * Math.cos(y * 0.05);
+        
+        if (noise > 0.5) {
+          // Walls for trees/rocks
+          tileId = this.getRandomTile(tilesByType.wall);
+          layer = 'wall';
+        } else if (noise > 0.2 && Math.random() < 0.3) {
+          // Decorations for bushes/flowers
+          tileId = this.getRandomTile(tilesByType.decoration);
+          layer = 'decoration';
+        } else {
+          // Grass/ground
+          tileId = this.getRandomTile(tilesByType.floor);
+          layer = 'floor';
+        }
+
+        row.push({ x, y, tileId, layer });
+      }
+      cells.push(row);
+    }
+
+    return cells;
+  }
+
+  private static generateCityLayout(width: number, height: number, tilesByType: Record<TileClassification, string[]>): MapCell[][] {
+    const cells: MapCell[][] = [];
+    
+    // Initialize with floor (streets)
+    for (let y = 0; y < height; y++) {
+      const row: MapCell[] = [];
+      for (let x = 0; x < width; x++) {
+        row.push({ x, y, tileId: this.getRandomTile(tilesByType.floor), layer: 'floor' });
+      }
+      cells.push(row);
+    }
+
+    // Create building blocks
+    const blockSize = 6;
+    for (let by = 0; by < height; by += blockSize + 2) {
+      for (let bx = 0; bx < width; bx += blockSize + 2) {
+        // Create building
+        for (let y = by; y < Math.min(by + blockSize, height); y++) {
+          for (let x = bx; x < Math.min(bx + blockSize, width); x++) {
+            if (x === bx || x === bx + blockSize - 1 || y === by || y === by + blockSize - 1) {
+              // Building walls
+              cells[y][x] = { x, y, tileId: this.getRandomTile(tilesByType.wall), layer: 'wall' };
+            } else if (Math.random() < 0.2) {
+              // Interior decorations
+              cells[y][x] = { x, y, tileId: this.getRandomTile(tilesByType.decoration), layer: 'decoration' };
+            }
+          }
+        }
+      }
+    }
+
+    return cells;
+  }
+
+  private static generateAbstractLayout(width: number, height: number, tilesByType: Record<TileClassification, string[]>): MapCell[][] {
+    const cells: MapCell[][] = [];
+    
+    for (let y = 0; y < height; y++) {
+      const row: MapCell[] = [];
+      for (let x = 0; x < width; x++) {
+        let tileId = null;
+        let layer: 'floor' | 'wall' | 'decoration' = 'floor';
+
+        // Create abstract patterns using mathematical functions
+        const pattern1 = Math.sin(x * 0.2) * Math.cos(y * 0.2);
+        const pattern2 = Math.sin((x + y) * 0.15);
+        const combined = pattern1 + pattern2;
+
+        if (combined > 1) {
+          tileId = this.getRandomTile(tilesByType.wall);
+          layer = 'wall';
+        } else if (combined > 0) {
+          tileId = this.getRandomTile(tilesByType.decoration);
+          layer = 'decoration';
+        } else {
+          tileId = this.getRandomTile(tilesByType.floor);
+          layer = 'floor';
+        }
+
+        row.push({ x, y, tileId, layer });
+      }
+      cells.push(row);
+    }
+
+    return cells;
+  }
+
+  private static getRandomTile(tiles: string[]): string | null {
+    if (!tiles || tiles.length === 0) return null;
+    return tiles[Math.floor(Math.random() * tiles.length)];
   }
 }
 
@@ -325,6 +525,13 @@ app.post('/extract-tiles', upload.single('image'), asyncHandler(async (req, res)
 
 app.post('/generate-map', asyncHandler(async (req, res) => {
   const validatedData = validate.mapGeneration(req.body);
+  
+  // Check if atlas exists
+  const atlas = atlases.get(validatedData.atlasId);
+  if (!atlas) {
+    throw createError('Atlas not found', 404);
+  }
+  
   const map = await MapGenerationService.generateMap(validatedData);
   maps.set(map.id, map);
   return createResponse(true, map);

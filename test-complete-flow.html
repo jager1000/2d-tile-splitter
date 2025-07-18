@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Complete Flow Test</title>
+</head>
+<body>
+  <h1>Testing Complete Map Generator Flow</h1>
+  <p>Open browser console to see test results...</p>
+  
+  <script>
+async function testCompleteFlow() {
+  try {
+    console.log('=== TESTING COMPLETE FLOW ===');
+    
+    // Step 1: Test backend connectivity
+    console.log('1. Testing backend connectivity...');
+    const backendTest = await fetch('http://localhost:8891/');
+    const backendData = await backendTest.json();
+    console.log('Backend response:', backendData);
+    
+    // Step 2: Test tile extraction with a simple mock image
+    console.log('\n2. Testing tile extraction...');
+    
+    // Create a simple test image (1x1 pixel red PNG)
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'red';
+    ctx.fillRect(0, 0, 32, 32);
+    
+    // Convert canvas to blob
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    
+    // Create FormData for tile extraction
+    const formData = new FormData();
+    formData.append('image', blob, 'test.png');
+    formData.append('gridConfig', JSON.stringify({ type: 'auto' }));
+    formData.append('tileSize', '32');
+    
+    const extractResponse = await fetch('http://localhost:8891/extract-tiles', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const extractResult = await extractResponse.json();
+    console.log('Extract tiles response:', extractResult);
+    
+    if (!extractResult.success) {
+      throw new Error('Tile extraction failed: ' + extractResult.error);
+    }
+    
+    // Step 3: Test map generation
+    console.log('\n3. Testing map generation...');
+    
+    const atlas = extractResult.data;
+    const mapData = {
+      atlasId: atlas.id,
+      width: 8,
+      height: 8,
+      tileSize: 32,
+      environmentType: 'dungeon',
+      tilesByType: {
+        floor: atlas.tiles.filter(t => t.classification === 'floor').map(t => t.id),
+        wall: atlas.tiles.filter(t => t.classification === 'wall').map(t => t.id),
+        decoration: atlas.tiles.filter(t => t.classification === 'decoration').map(t => t.id)
+      }
+    };
+    
+    console.log('Map generation request:', mapData);
+    
+    const mapResponse = await fetch('http://localhost:8891/generate-map', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(mapData)
+    });
+    
+    const mapResult = await mapResponse.json();
+    console.log('Map generation response:', mapResult);
+    
+    if (mapResult.success) {
+      console.log('\n✅ COMPLETE FLOW TEST SUCCESSFUL!');
+      console.log('Generated map size:', mapResult.data.width + 'x' + mapResult.data.height);
+      console.log('Cells structure:', Array.isArray(mapResult.data.cells) ? 'Array' : 'Not Array');
+      console.log('First few cells:', mapResult.data.cells.slice(0, 2));
+    } else {
+      console.log('\n❌ MAP GENERATION FAILED:', mapResult.error);
+    }
+    
+  } catch (error) {
+    console.error('\n❌ TEST FAILED:', error);
+  }
+}
+
+// Run the test
+testCompleteFlow();
+  </script>
+</body>
+</html>
